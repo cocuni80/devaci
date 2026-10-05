@@ -211,6 +211,12 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# Vendor binaries (Cisco ACI Cobra SDK wheels)
+vendor/
+
+# Local reminder: do not publish yet
+DO_NOT_PUBLISH.md
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

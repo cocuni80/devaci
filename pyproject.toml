@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "devaci"
+version = "0.1.0"
+description = "Python library that generates Cisco ACI configuration and optionally pushes it to an APIC controller via Cisco's official Cobra SDK."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Jorge Riveros" },
+]
+keywords = ["cisco", "aci", "apic", "cobra", "networking", "sdn"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    # Note: the Cisco ACI Cobra SDK (acicobra, acimodel, aciparser, acirpc)
+    # is distributed as .whl/.egg by Cisco and is NOT on PyPI.
+    # Install it separately before using devaci.
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/<usuario>/devaci"
+Repository = "https://github.com/<usuario>/devaci"
+Issues = "https://github.com/<usuario>/devaci/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/devaci"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/devaci", "tests", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src"]
