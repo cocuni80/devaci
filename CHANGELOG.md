@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0a1] - 2026-10-05
+
+### Added
+
+- Start of the 2.x development line (breaking changes to templates and backend).
+
 ## [1.0.0] - 2026-10-05
 
 ### Added
