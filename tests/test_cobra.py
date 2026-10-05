@@ -1,5 +1,5 @@
-import cobra.model.coop
 import cobra.mit.request
+import cobra.model.coop
 
 
 def test_cobra_model_coop_available():

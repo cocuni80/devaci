@@ -9,14 +9,28 @@ devaci/
 ├── LICENSE
 ├── README.md
 ├── pyproject.toml
+├── pyrightconfig.json
 ├── uv.lock
 ├── src/
 │   └── devaci/
-│       ├── __init__.py
-│       └── py.typed
+│       ├── __init__.py        # public API
+│       ├── console.py         # logging + rich console
+│       ├── data.py            # xlsx/csv loading and filtering
+│       ├── deploy.py          # DeployClass orchestrator
+│       ├── exceptions.py
+│       ├── filters.py         # Jinja filters + YAML loader
+│       ├── jinja.py           # JinjaRenderer
+│       ├── results.py         # result dataclasses
+│       └── cobra/
+│           ├── __init__.py    # CobraBuilder
+│           ├── base.py
+│           ├── builders.py    # registered ACI object handlers
+│           └── registry.py
 └── tests/
-    ├── __init__.py
-    └── test_devaci.py
+    ├── test_cobra.py
+    ├── test_deploy.py
+    ├── test_devaci.py
+    └── test_outputs.py
 ```
 
 ## Installation (development)
@@ -59,7 +73,7 @@ uv run ruff check .
 uv run mypy src
 ```
 
-## Publishing (later)
+## Publishing
 
 ```bash
 uv build

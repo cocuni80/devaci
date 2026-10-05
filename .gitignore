@@ -217,6 +217,16 @@ vendor/
 # Local reminder: do not publish yet
 DO_NOT_PUBLISH.md
 
+# Sensitive test data (e.g. xlsx, csv) - not committed
+data/
+
+# Generated outputs (private ACI configuration) - not committed
+outputs/
+scripts/
+logs/
+logging.json
+tests/testing/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
