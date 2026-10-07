@@ -120,7 +120,7 @@ class DeployClass:
 
         try:
             renderer = JinjaRenderer()
-            output = renderer.render(content, name=name, **self._variables)
+            output = renderer.render(content, **self._variables)
             logs.append(f"[Jinja]: Template {name} was rendered successfully.")
             logger.info(logs[-1])
 

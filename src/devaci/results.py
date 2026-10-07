@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 
 def _timestamp() -> str:
@@ -44,11 +44,15 @@ class CobraResult(Result):
 
     @property
     def xml(self) -> str | None:
-        return self.config.xmldata if self.config is not None else None
+        if self.config is None or not self.config.configMos:
+            return None
+        return cast(str | None, self.config.xmldata)
 
     @property
     def json(self) -> Any:
-        return json.loads(self.config.data) if self.config is not None else None
+        if self.config is None or not self.config.configMos:
+            return None
+        return json.loads(self.config.data)
 
     def to_dict(self) -> dict[str, Any]:
         data = super().to_dict()

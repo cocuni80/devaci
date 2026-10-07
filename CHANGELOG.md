@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-07
+
+### Fixed
+
+- `JinjaRenderer.render` no longer fails when a template variable is named `name`.
+- `CobraBuilder.xml`/`json` no longer raise when the configuration is empty.
+
 ## [1.0.0] - 2026-10-05
 
 ### Added

@@ -26,7 +26,7 @@ class JinjaRenderer:
         self._env.filters["range"] = range_filter
         self._env.filters["nan"] = nan_filter
 
-    def render(self, template: str, name: str | None = None, **variables: Any) -> dict[str, Any]:
+    def render(self, template: str, **variables: Any) -> dict[str, Any]:
         """Render ``template`` with ``variables`` and parse the YAML output."""
         try:
             rendered = self._env.from_string(template).render(**variables)
@@ -36,7 +36,5 @@ class JinjaRenderer:
 
         output = load_yaml(rendered)
         if not isinstance(output, dict):
-            raise JinjaError(
-                f"[Jinja] -> [ConfigError]: Template {name} did not produce a mapping."
-            )
+            raise JinjaError("[Jinja] -> [ConfigError]: Template did not produce a mapping.")
         return output

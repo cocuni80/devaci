@@ -40,12 +40,16 @@ class CobraBuilder:
 
     @property
     def xml(self) -> str | None:
-        """Return the rendered XML payload."""
+        """Return the rendered XML payload, or None when the config is empty."""
+        if not self.config.configMos:
+            return None
         return cast(str | None, self.config.xmldata)
 
     @property
     def json(self) -> Any:
-        """Return the rendered JSON payload as a dict."""
+        """Return the rendered JSON payload as a dict, or None when the config is empty."""
+        if not self.config.configMos:
+            return None
         return json.loads(self.config.data)
 
     def render(self, output: dict[str, Any]) -> CobraResult:
