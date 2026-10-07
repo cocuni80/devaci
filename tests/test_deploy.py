@@ -83,3 +83,16 @@ def test_deploy_save_output(tmp_path):
     output = tmp_path / "scripts" / "config.xml"
     assert output.exists()
     assert "acme" in output.read_text(encoding="utf-8")
+
+
+def test_deploy_variable_named_name(tmp_path):
+    aci = DeployClass(testing=True, working_folder=tmp_path, logging=False)
+    aci.variables = {"name": "test", "descr": "Test tenant"}
+    aci.template = (
+        "fvTenant:\n  - name: {{ name }}\n    descr: {{ descr }}\n",
+        "tenant.j2",
+    )
+    aci.deploy()
+
+    assert aci.results[0]["success"] is True
+    assert "test" in aci.config
