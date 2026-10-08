@@ -14,23 +14,33 @@ devaci/
 ├── src/
 │   └── devaci/
 │       ├── __init__.py        # public API
+│       ├── apic.py            # ApicSession (login/commit)
+│       ├── config.py          # typed DeployConfig
 │       ├── console.py         # logging + rich console
 │       ├── data.py            # xlsx/csv loading and filtering
 │       ├── deploy.py          # DeployClass orchestrator
 │       ├── exceptions.py
 │       ├── filters.py         # Jinja filters + YAML loader
+│       ├── inputs.py          # TemplateSource + DataLoader
 │       ├── jinja.py           # JinjaRenderer
+│       ├── output.py          # OutputWriter
 │       ├── results.py         # result dataclasses
+│       ├── runlog.py          # RunLog history
 │       └── cobra/
 │           ├── __init__.py    # CobraBuilder
 │           ├── base.py
-│           ├── builders.py    # registered ACI object handlers
-│           └── registry.py
+│           ├── builders.py    # BUILDERS mapping (per ACI domain)
+│           └── registry.py    # build_registry helper
 └── tests/
     ├── test_cobra.py
+    ├── test_components.py
+    ├── test_config.py
+    ├── test_data.py
     ├── test_deploy.py
     ├── test_devaci.py
-    └── test_outputs.py
+    ├── test_filters.py
+    ├── test_jinja.py
+    └── test_results.py
 ```
 
 ## Installation (development)

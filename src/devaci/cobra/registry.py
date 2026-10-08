@@ -1,24 +1,18 @@
-"""Explicit handler registry for Cobra object builders."""
+"""Handler registry for Cobra object builders."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 Handler = Callable[..., None]
 
-REGISTRY: dict[str, Handler] = {}
 
-
-def register(key: str) -> Callable[[Handler], Handler]:
-    """Register a builder function under a template/YAML key."""
-
-    def decorator(func: Handler) -> Handler:
-        REGISTRY[key] = func
-        return func
-
-    return decorator
-
-
-def get_handler(key: str) -> Handler | None:
-    """Return the handler registered under ``key``, or ``None``."""
-    return REGISTRY.get(key)
+def build_registry(*mappings: Mapping[str, Handler]) -> dict[str, Handler]:
+    """Merge handler mappings into one dict, rejecting duplicate ACI keys."""
+    registry: dict[str, Handler] = {}
+    for mapping in mappings:
+        for key, handler in mapping.items():
+            if key in registry:
+                raise ValueError(f"Duplicate ACI handler key: {key}")
+            registry[key] = handler
+    return registry

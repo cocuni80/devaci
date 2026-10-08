@@ -1,9 +1,11 @@
 import cobra.mit.request
 import cobra.model.coop
+import pytest
 
 from devaci.cobra import CobraBuilder
 from devaci.cobra.base import not_nan_str
-from devaci.cobra.registry import REGISTRY
+from devaci.cobra.builders import BUILDERS
+from devaci.cobra.registry import build_registry
 
 
 def test_cobra_model_coop_available():
@@ -54,6 +56,15 @@ def test_cobra_builder_skips_empty_values():
     assert result.success is False
 
 
-def test_registry_handlers_are_callable():
-    assert "fvTenant" in REGISTRY
-    assert all(callable(handler) for handler in REGISTRY.values())
+def _noop(*args, **kwargs):
+    return None
+
+
+def test_builders_mapping():
+    assert "fvTenant" in BUILDERS
+    assert all(callable(handler) for handler in BUILDERS.values())
+
+
+def test_build_registry_rejects_duplicates():
+    with pytest.raises(ValueError):
+        build_registry({"dup": _noop}, {"dup": _noop})

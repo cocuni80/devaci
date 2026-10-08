@@ -52,11 +52,9 @@ Issues = "https://github.com/cocuni80/devaci/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/devaci"]
-exclude = ["src/devaci/_legacy"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/devaci", "tests", "README.md", "LICENSE"]
-exclude = ["src/devaci/_legacy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -64,7 +62,6 @@ addopts = "-ra"
 
 [tool.coverage.run]
 source = ["devaci"]
-omit = ["*/_legacy/*"]
 
 [tool.coverage.report]
 show_missing = true
@@ -72,21 +69,19 @@ show_missing = true
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-exclude = ["src/devaci/_legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 # Cobra SDK convention uses PascalCase locals mirroring Mo class names,
-# and the legacy handlers use nested `if` guards (kept verbatim).
+# and the handlers use nested `if` guards (kept verbatim).
 "src/devaci/cobra/builders.py" = ["N806", "SIM102"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 files = ["src"]
-exclude = ["_legacy"]
 
 [[tool.mypy.overrides]]
 module = ["cobra", "cobra.*", "jinja2", "pandas"]

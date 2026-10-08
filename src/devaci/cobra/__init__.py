@@ -8,7 +8,7 @@ from typing import Any, cast
 import cobra.mit.request
 import cobra.model.pol
 
-from devaci.cobra.registry import REGISTRY
+from devaci.cobra.builders import BUILDERS
 from devaci.console import logger
 from devaci.results import CobraResult
 
@@ -65,7 +65,7 @@ class CobraBuilder:
             if value in (None, [], {}, ""):
                 continue
 
-            handler = REGISTRY.get(key)
+            handler = BUILDERS.get(key)
             if handler is None:
                 success = False
                 msg = f"[Cobra] -> [ConfigError]: Class {key} does not exist."
@@ -92,6 +92,3 @@ class CobraBuilder:
 
         self.result = CobraResult(success=success, log=logs, config=self.config)
         return self.result
-
-
-from devaci.cobra import builders  # noqa: E402, F401
