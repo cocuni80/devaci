@@ -9,38 +9,43 @@ devaci/
 ├── LICENSE
 ├── README.md
 ├── pyproject.toml
-├── pyrightconfig.json
 ├── uv.lock
 ├── src/
 │   └── devaci/
 │       ├── __init__.py        # public API
-│       ├── apic.py            # ApicSession (login/commit)
 │       ├── config.py          # typed DeployConfig
-│       ├── console.py         # logging + rich console
-│       ├── data.py            # xlsx/csv loading and filtering
+│       ├── console.py         # logging only
 │       ├── deploy.py          # DeployClass orchestrator
 │       ├── exceptions.py
-│       ├── filters.py         # Jinja filters + YAML loader
-│       ├── inputs.py          # TemplateSource + DataLoader
-│       ├── jinja.py           # JinjaRenderer
-│       ├── output.py          # OutputWriter
 │       ├── results.py         # result dataclasses
-│       ├── runlog.py          # RunLog history
+│       ├── inputs/
+│       │   ├── templates.py   # TemplateSource
+│       │   └── datasets.py    # DataLoader + xlsx/csv loading and filtering
+│       ├── rendering/
+│       │   ├── jinja.py       # JinjaRenderer
+│       │   ├── filters.py     # Jinja filters
+│       │   └── yaml_loader.py # non-coercing YAML loader
+│       ├── output/
+│       │   ├── writer.py      # OutputWriter + rich terminal output
+│       │   └── runlog.py      # RunLog history
+│       ├── transport/
+│       │   └── apic.py        # ApicSession (login/commit)
 │       └── cobra/
 │           ├── __init__.py    # CobraBuilder
-│           ├── base.py
-│           ├── builders.py    # BUILDERS mapping (per ACI domain)
-│           └── registry.py    # build_registry helper
+│           ├── base.py        # shared helpers + Handler protocol
+│           └── builders.py    # BUILDERS mapping (unified)
 └── tests/
-    ├── test_cobra.py
-    ├── test_components.py
+    ├── conftest.py
     ├── test_config.py
-    ├── test_data.py
+    ├── test_console.py
     ├── test_deploy.py
     ├── test_devaci.py
-    ├── test_filters.py
-    ├── test_jinja.py
-    └── test_results.py
+    ├── test_results.py
+    ├── test_cobra/
+    ├── test_inputs/
+    ├── test_output/
+    ├── test_rendering/
+    └── test_transport/
 ```
 
 ## Installation (development)

@@ -9,9 +9,10 @@ from typing import Any
 
 import cobra.mit.access
 import cobra.mit.session
-import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from devaci.console import get_logger
+
+logger = get_logger(__name__)
 
 
 class ApicSession:
@@ -33,8 +34,20 @@ class ApicSession:
     ) -> None:
         self._ip = ip
         self._timer = timer
+        if not secure:
+            logger.warning(
+                "[ApicSession]: TLS certificate verification is disabled (secure=False)."
+            )
+            self._disable_tls_warnings()
         self._session = cobra.mit.session.LoginSession(url, username, password, secure, timeout)
         self._modir = cobra.mit.access.MoDirectory(self._session)
+
+    @staticmethod
+    def _disable_tls_warnings() -> None:
+        """Silence urllib3's InsecureRequestWarning for unverified TLS sessions."""
+        import urllib3
+
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     def commit(self, config: Any) -> None:
         """Log in, commit ``config`` and log out, raising on failure.

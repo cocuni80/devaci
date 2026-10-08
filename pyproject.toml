@@ -62,9 +62,13 @@ addopts = "-ra"
 
 [tool.coverage.run]
 source = ["devaci"]
+# builders.py is a large map of thin Cobra SDK wrappers, exercised through the
+# end-to-end deploy path rather than unit tests; it is excluded from the gate.
+omit = ["*/cobra/builders.py"]
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 80
 
 [tool.ruff]
 target-version = "py310"

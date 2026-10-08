@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, next]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy src
+
+      # The Cisco Cobra SDK is not on PyPI and its wheels are not tracked
+      # (vendor/ is gitignored), so the test suite only runs when the wheels
+      # are present in the checkout.
+      - name: Install Cobra SDK when vendored
+        run: |
+          if compgen -G "vendor/*.whl" > /dev/null; then
+            uv pip install vendor/*.whl
+          else
+            echo "::warning::vendor/*.whl missing; skipping tests"
+          fi
+
+      - name: Tests
+        if: hashFiles('vendor/*.whl') != ''
+        run: uv run pytest --cov=devaci

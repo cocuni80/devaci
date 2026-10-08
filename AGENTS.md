@@ -6,9 +6,9 @@
 
 ```bash
 uv sync                       # create .venv, install runtime + dev deps
-uv run pytest                 # full suite (currently 58 tests)
-uv run pytest tests/test_data.py::test_apply_filter_no_filters   # single test
-uv run pytest --cov=devaci    # with coverage
+uv run pytest                 # full suite (currently 76 tests)
+uv run pytest tests/test_inputs/test_datasets.py::test_apply_filter_no_filters  # single test
+uv run pytest --cov=devaci    # with coverage (fails under 80%)
 uv run ruff check .           # lint
 uv run mypy src               # typecheck (strict)
 ```
@@ -29,15 +29,18 @@ The importable package is `cobra` (not `acicobra`). `vendor/` only holds `acicob
 
 Pipeline: input data + template -> `JinjaRenderer.render` (template -> YAML dict) -> `CobraBuilder.render` (dict -> `ConfigRequest`) -> output / APIC commit. Orchestrated by `DeployClass` in `src/devaci/deploy.py`.
 
+The package is organized by layer: `inputs/` (templates + tabular data), `rendering/` (Jinja + filters + YAML loader), `output/` (writer + run history), `transport/` (APIC session) and `cobra/` (config builder). Shared result models live in `results.py` and logging in `console.py`.
+
 - `DeployClass` is configured via a typed `DeployConfig` (`src/devaci/config.py`) or, for backwards compatibility, `**kwargs` at construction; then driven through property setters: set `.template`, optionally `.xlsx`/`.csv`/`.variables`, then call `.deploy()`.
-- `DeployClass` is a thin facade over focused components: `ApicSession` (`apic.py`, login/commit/countdown), `TemplateSource` + `DataLoader` (`inputs.py`), `OutputWriter` (`output.py`) and `RunLog` (`runlog.py`). Keep new responsibilities in their own component rather than growing the facade.
-- `CobraBuilder.render` dispatches each non-empty top-level YAML key to the `BUILDERS` mapping (`src/devaci/cobra/builders.py`), composed per ACI domain (Tenant/Fabric/Infra/Policies) with `build_registry` (`registry.py`), which rejects duplicate keys. Unknown keys mark the whole render as failed. To add an ACI object type, add a handler and register it in the matching domain mapping.
+- `DeployClass` is a thin facade over focused components: `ApicSession` (`transport/apic.py`, login/commit/countdown), `TemplateSource` + `DataLoader` (`inputs/`), `OutputWriter` (`output/writer.py`) and `RunLog` (`output/runlog.py`). Keep new responsibilities in their own component rather than growing the facade.
+- `deploy()` commits only when **every** template in the run succeeded; a multi-template run accumulates into one `ConfigRequest`. A `CobraBuilder` is cumulative across renders and devaci never clears the accumulated tree.
+- `CobraBuilder.render` dispatches each non-empty top-level YAML key to the unified `BUILDERS` mapping (`src/devaci/cobra/builders.py`); the handler type is the `Handler` protocol in `cobra/base.py`. Unknown keys mark the whole render as failed. To add an ACI object type, add a handler and register it in `BUILDERS`.
 - `builders.py` is large and intentionally mirrors the Cobra SDK's PascalCase class/local naming. Keep that style; ruff ignores `N806`/`SIM102` only for this file.
 - There is no `src/devaci/_legacy` package; it was removed in 2.x. Don't recreate it, and don't re-add `_legacy` excludes to the tooling config.
 
 ## Gotchas
 
-- `load_yaml` (`src/devaci/filters.py`) uses a custom loader that deliberately does NOT coerce YAML ints/floats/bools - everything stays a string so APIC values are not mangled. Do not swap in `yaml.safe_load`.
+- `load_yaml` (`src/devaci/rendering/yaml_loader.py`) uses a custom loader that deliberately does NOT coerce YAML ints/floats/bools - everything stays a string so APIC values are not mangled. Do not swap in `yaml.safe_load`.
 - `DeployClass` prompts interactively for APIC credentials (via `getpass`) unless `testing=True`. Use `testing=True` to dry-run.
 - The manual end-to-end runner is `tests/testing/run_deploy.py` (sets `TESTING = True` to avoid the credential prompt). It is a gitignored script, NOT a pytest test.
 - `pyproject.toml` uses `strict = true` for mypy and ruff `select = [E, F, I, N, UP, B, SIM]`, `line-length = 100`.

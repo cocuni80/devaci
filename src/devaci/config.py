@@ -7,7 +7,11 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from devaci.console import logger
+from devaci.console import get_logger
+
+__all__ = ["DeployConfig"]
+
+logger = get_logger(__name__)
 
 
 @dataclass

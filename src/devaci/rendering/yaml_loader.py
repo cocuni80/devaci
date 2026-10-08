@@ -1,4 +1,8 @@
-"""Jinja filters and YAML loading helpers for devaci."""
+"""YAML loading that deliberately avoids type coercion.
+
+APIC values are kept as their original strings: YAML ints/floats/bools are
+NOT converted to Python types, and ``nan`` strings are normalised to ``""``.
+"""
 
 from __future__ import annotations
 
@@ -11,35 +15,6 @@ from yaml.parser import Parser
 from yaml.reader import Reader
 from yaml.resolver import Resolver
 from yaml.scanner import Scanner
-
-
-def split_filter(value: Any, delimiter: str = ",") -> list[str]:
-    """Split a value into a list of strings."""
-    return str(value).split(delimiter)
-
-
-def range_filter(value: Any) -> list[int]:
-    """Expand a string such as ``1-3,5`` into a list of integers."""
-    result: list[int] = []
-    for part in str(value).split(","):
-        if "-" in part:
-            start, end = part.split("-")
-            result.extend(range(int(start), int(end) + 1))
-        else:
-            result.append(int(part))
-    return result
-
-
-def nan_filter(value: Any) -> bool:
-    """Return False when the value is the string ``nan``."""
-    return str(value) != "nan"
-
-
-def str_to_bool(value: Any) -> bool:
-    """Convert common truthy strings to a boolean."""
-    if isinstance(value, bool):
-        return value
-    return str(value).lower() in ("true", "yes", "1")
 
 
 def no_convert_int_constructor(loader: Any, node: Any) -> Any:

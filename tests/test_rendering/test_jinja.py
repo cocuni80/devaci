@@ -1,7 +1,7 @@
 import pytest
 
 from devaci.exceptions import JinjaError
-from devaci.jinja import JinjaRenderer
+from devaci.rendering.jinja import JinjaRenderer
 
 
 def test_render_mapping():

@@ -4,9 +4,10 @@ from importlib.metadata import PackageNotFoundError, version
 
 from devaci.cobra import CobraBuilder
 from devaci.config import DeployConfig
+from devaci.console import configure_logging
 from devaci.deploy import DeployClass
 from devaci.exceptions import CobraError, DataError, DeployError, DevaciError, JinjaError
-from devaci.jinja import JinjaRenderer
+from devaci.rendering.jinja import JinjaRenderer
 
 try:
     __version__ = version("devaci")
@@ -18,6 +19,7 @@ __all__ = [
     "DeployClass",
     "DeployConfig",
     "JinjaRenderer",
+    "configure_logging",
     "DevaciError",
     "CobraError",
     "JinjaError",

@@ -7,10 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reorganized the package into layer subpackages: `inputs/`, `rendering/`,
+  `output/` and `transport/` (`results.py`, `config.py`, `console.py`,
+  `deploy.py` stay at the top level). Import paths changed accordingly.
+- Unified the ACI handler registries into a single `BUILDERS` mapping in
+  `cobra/builders.py`; the `Handler` type is now a protocol in `cobra/base.py`.
+- XML/JSON payload extraction is shared between `CobraBuilder` and `CobraResult`.
+- The library attaches a `NullHandler` and only emits logs when
+  `configure_logging()` (now public) or another logging setup is used.
+
 ### Fixed
 
 - `JinjaRenderer.render` no longer fails when a template variable is named `name`.
 - `CobraBuilder.xml`/`json` no longer raise when the configuration is empty.
+- `DeployClass.deploy` only commits when **every** template succeeded.
+- `range_filter` raises a clear `ValueError` on malformed input.
+- TLS warnings are no longer disabled at import time; they are silenced only
+  when an insecure (`secure=False`) session is created.
+
+### Removed
+
+- `cobra/registry.py` (`build_registry`), superseded by the unified `BUILDERS` map.
+- Permissive `pyrightconfig.json`; `mypy` (strict) is the type-checking gate.
+
+### Added
+
+- pytest fixtures in `tests/conftest.py` and a test tree mirroring `src/`.
+- CI workflow running ruff + mypy, with a coverage gate (`fail_under = 80`).
 
 ## [2.0.0a1] - 2026-10-05
 

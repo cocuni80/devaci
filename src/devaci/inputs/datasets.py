@@ -1,4 +1,4 @@
-"""Input data loading (xlsx/csv) and filtering for devaci."""
+"""Tabular input loading (CSV/XLSX), filtering, and template variables."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from typing import Any, cast
 
 import pandas as pd
 
+from devaci.console import get_logger
 from devaci.exceptions import DataError
+
+logger = get_logger(__name__)
 
 
 def apply_filter(
@@ -79,3 +82,70 @@ def load_xlsx(
         ].tolist()
 
     return {name: apply_filter(df, by, resolved_filters) for name, df in sheets.items()}
+
+
+class DataLoader:
+    """Loads CSV/XLSX sheets into the template variable namespace."""
+
+    def __init__(
+        self,
+        working_folder: Path,
+        filters: Iterable[str] | None = None,
+        by: str = "tag",
+        source_sheet: str | None = None,
+        condition_field: str = "enabled",
+        output_field: str = "name",
+    ) -> None:
+        self._working_folder = working_folder
+        self._filters = filters
+        self._by = by
+        self._source_sheet = source_sheet
+        self._condition_field = condition_field
+        self._output_field = output_field
+        self._variables: dict[str, Any] = {}
+
+    @property
+    def variables(self) -> dict[str, Any]:
+        return self._variables
+
+    @variables.setter
+    def variables(self, value: dict[str, Any]) -> None:
+        self._variables = value
+
+    @staticmethod
+    def _as_files(value: Any) -> list[Any]:
+        """Normalise a filename (or list of filenames) into a list.
+
+        Raises:
+            TypeError: when ``value`` is neither a string nor a list/tuple.
+        """
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        raise TypeError(
+            f"Expected a filename or a list of filenames, got {type(value).__name__}."
+        )
+
+    def add_csv(self, value: Any) -> None:
+        """Merge CSV sheet(s) into the variables dict."""
+        for file in self._as_files(value):
+            try:
+                self._variables |= load_csv(self._working_folder / file, self._filters, self._by)
+            except Exception as exc:
+                logger.exception(f"[CSVException]: Error loading CSV file: {exc}")
+
+    def add_xlsx(self, value: Any) -> None:
+        """Merge XLSX sheet(s) into the variables dict."""
+        for file in self._as_files(value):
+            try:
+                self._variables |= load_xlsx(
+                    self._working_folder / file,
+                    self._filters,
+                    self._by,
+                    self._source_sheet,
+                    self._condition_field,
+                    self._output_field,
+                )
+            except Exception as exc:
+                logger.exception(f"[XLSXException]: Error loading XLSX file '{file}': {exc}")

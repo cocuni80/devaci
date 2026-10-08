@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from devaci.console import logger
+from devaci.console import get_logger
+
+logger = get_logger(__name__)
 
 
 class RunLog:
@@ -39,4 +41,4 @@ class RunLog:
             with open(log_file, "w", encoding="utf-8") as handle:
                 json.dump(history, handle, indent=4, ensure_ascii=False)
         except Exception as exc:
-            logger.error(f"[LoggingError]: {type(exc).__name__}: {exc}")
+            logger.exception(f"[LoggingError]: {type(exc).__name__}: {exc}")

@@ -1,13 +1,9 @@
 import math
 
-from devaci.filters import (
-    load_yaml,
-    nan_filter,
-    range_filter,
-    replace_str_nan_with_empty,
-    split_filter,
-    str_to_bool,
-)
+import pytest
+
+from devaci.rendering.filters import nan_filter, range_filter, split_filter, str_to_bool
+from devaci.rendering.yaml_loader import load_yaml, replace_str_nan_with_empty
 
 
 def test_split_filter():
@@ -24,6 +20,12 @@ def test_range_filter():
 
 def test_range_filter_single():
     assert range_filter("7") == [7]
+
+
+@pytest.mark.parametrize("value", ["1-a", "a-b", "1-", "", "1,,2"])
+def test_range_filter_invalid_raises(value):
+    with pytest.raises(ValueError, match="Invalid range value"):
+        range_filter(value)
 
 
 def test_nan_filter():

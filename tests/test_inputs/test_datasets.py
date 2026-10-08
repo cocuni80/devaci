@@ -1,8 +1,8 @@
 import pandas as pd
 import pytest
 
-from devaci.data import apply_filter, load_csv, load_xlsx
 from devaci.exceptions import DataError
+from devaci.inputs.datasets import DataLoader, apply_filter, load_csv, load_xlsx
 
 
 def _df() -> pd.DataFrame:
@@ -54,3 +54,40 @@ def test_load_xlsx_missing_filters_sheet(tmp_path):
 
     with pytest.raises(DataError):
         load_xlsx(path, by="tag", filters_source_sheet="nope")
+
+
+def test_data_loader_csv(tmp_path):
+    pd.DataFrame({"tag": ["a"], "name": ["x"]}).to_csv(tmp_path / "d.csv", index=False)
+
+    loader = DataLoader(tmp_path)
+    loader.add_csv("d.csv")
+
+    assert loader.variables == {"d": [{"tag": "a", "name": "x"}]}
+
+
+def test_data_loader_xlsx(tmp_path):
+    pd.DataFrame({"tag": ["a"], "name": ["x"]}).to_excel(
+        tmp_path / "d.xlsx", sheet_name="tenants", index=False
+    )
+
+    loader = DataLoader(tmp_path)
+    loader.add_xlsx("d.xlsx")
+
+    assert loader.variables == {"tenants": [{"tag": "a", "name": "x"}]}
+
+
+def test_data_loader_accepts_list_of_files(tmp_path):
+    pd.DataFrame({"tag": ["a"], "name": ["x"]}).to_csv(tmp_path / "one.csv", index=False)
+    pd.DataFrame({"tag": ["b"], "name": ["y"]}).to_csv(tmp_path / "two.csv", index=False)
+
+    loader = DataLoader(tmp_path)
+    loader.add_csv(["one.csv", "two.csv"])
+
+    assert set(loader.variables) == {"one", "two"}
+
+
+def test_data_loader_rejects_invalid_type(tmp_path):
+    loader = DataLoader(tmp_path)
+
+    with pytest.raises(TypeError, match="Expected a filename"):
+        loader.add_csv(123)

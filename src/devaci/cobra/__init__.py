@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any, cast
+from typing import Any
 
 import cobra.mit.request
 import cobra.model.pol
 
+from devaci.cobra.base import config_json, config_xml
 from devaci.cobra.builders import BUILDERS
-from devaci.console import logger
+from devaci.console import get_logger
 from devaci.results import CobraResult
+
+logger = get_logger(__name__)
 
 
 class CobraBuilder:
@@ -20,6 +22,12 @@ class CobraBuilder:
     :mod:`devaci.cobra.builders`). Each handler receives the builder and the
     list of objects and is responsible for adding Mo instances to
     :attr:`config`.
+
+    A builder is **cumulative**: every object added by :meth:`render` stays in
+    the same :class:`ConfigRequest` rooted at :attr:`uni`, so several renders
+    (e.g. several templates) build one tree that is committed once. To start a
+    fresh tree, create a new :class:`CobraBuilder`; devaci never clears the
+    accumulated tree.
     """
 
     def __init__(self) -> None:
@@ -41,16 +49,12 @@ class CobraBuilder:
     @property
     def xml(self) -> str | None:
         """Return the rendered XML payload, or None when the config is empty."""
-        if not self.config.configMos:
-            return None
-        return cast(str | None, self.config.xmldata)
+        return config_xml(self.config)
 
     @property
     def json(self) -> Any:
         """Return the rendered JSON payload as a dict, or None when the config is empty."""
-        if not self.config.configMos:
-            return None
-        return json.loads(self.config.data)
+        return config_json(self.config)
 
     def render(self, output: dict[str, Any]) -> CobraResult:
         """Render ``output`` through the registered handlers.
@@ -81,7 +85,7 @@ class CobraBuilder:
             except Exception as exc:
                 success = False
                 msg = f"[Cobra] -> [{type(exc).__name__}]: Class {key} failed: {exc}"
-                logger.error(msg)
+                logger.exception(msg)
                 logs.append(msg)
 
         if not self.config.configMos:

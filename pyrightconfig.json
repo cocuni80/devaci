@@ -1,7 +1,0 @@
-{
-  "reportMissingTypeStubs": "none",
-  "reportUnknownMemberType": "none",
-  "reportUnknownArgumentType": "none",
-  "reportUnknownVariableType": "none",
-  "reportAttributeAccessIssue": "none"
-}

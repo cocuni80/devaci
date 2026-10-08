@@ -42,8 +42,7 @@ import cobra.model.stormctrl
 import cobra.model.stp
 import cobra.model.vz
 
-from devaci.cobra.base import not_nan_str
-from devaci.cobra.registry import Handler, build_registry
+from devaci.cobra.base import Handler, not_nan_str
 
 if TYPE_CHECKING:
     from devaci.cobra import CobraBuilder
@@ -1765,7 +1764,7 @@ def infrazone_zone_p(builder: CobraBuilder, value: Any) -> None:
 
 # --------------------------------------------------------------------------- Registry
 
-TENANT: dict[str, Handler] = {
+BUILDERS: dict[str, Handler] = {
     "fvTenant": fv_tenant,
     "fvAp": fv_ap,
     "fvAEPg": fv_aepg,
@@ -1825,9 +1824,6 @@ TENANT: dict[str, Handler] = {
     "tenant_node_management_address": tenant_node_management_address,
     "tenant_node_management_static": tenant_node_management_static,
     "tenant_node_connection_group": tenant_node_connection_group,
-}
-
-FABRIC: dict[str, Handler] = {
     "fabricSetupPol": fabric_setup_pol,
     "fabricRsOosPath": fabric_rs_oos_path,
     "fabricSetupP": fabric_setup_p,
@@ -1850,9 +1846,6 @@ FABRIC: dict[str, Handler] = {
     "snmpPol": snmp_pol,
     "commPol": comm_pol,
     "fabric_policy_switch_callhome": fabric_policy_switch_callhome,
-}
-
-INFRA: dict[str, Handler] = {
     "infraNodeP": infra_node_p,
     "infraAccNodePGrp": infra_acc_node_p_grp,
     "infraSpineP": infra_spine_p,
@@ -1868,9 +1861,6 @@ INFRA: dict[str, Handler] = {
     "physDomP": phys_dom_p,
     "l3extDomP": l3ext_dom_p,
     "l2extDomP": l2ext_dom_p,
-}
-
-POLICIES: dict[str, Handler] = {
     "fabricProtPol": fabric_prot_pol,
     "fabricHIfPol": fabric_h_if_pol,
     "qosPfcIfPol": qos_pfc_if_pol,
@@ -1898,5 +1888,3 @@ POLICIES: dict[str, Handler] = {
     "latencyPtpMode": latency_ptp_mode,
     "infrazoneZoneP": infrazone_zone_p,
 }
-
-BUILDERS: dict[str, Handler] = build_registry(TENANT, FABRIC, INFRA, POLICIES)

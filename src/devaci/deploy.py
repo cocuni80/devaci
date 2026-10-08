@@ -3,32 +3,34 @@
 from __future__ import annotations
 
 import getpass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from devaci.apic import ApicSession
 from devaci.cobra import CobraBuilder
 from devaci.config import DeployConfig
-from devaci.console import logger
+from devaci.console import get_logger
 from devaci.exceptions import DeployError
-from devaci.inputs import DataLoader, TemplateSource
-from devaci.jinja import JinjaRenderer
-from devaci.output import OutputWriter
-from devaci.results import DeployResult
-from devaci.runlog import RunLog
+from devaci.inputs.datasets import DataLoader
+from devaci.inputs.templates import TemplateSource
+from devaci.output.runlog import RunLog
+from devaci.output.writer import OutputWriter
+from devaci.rendering.jinja import JinjaRenderer
+from devaci.results import DeployResult, Result
+from devaci.transport.apic import ApicSession
+
+logger = get_logger(__name__)
 
 
 class DeployClass:
     """Deployment manager for Cisco ACI using the Cobra SDK.
 
     Thin orchestrator that wires the pipeline components together: template
-    rendering (:class:`~devaci.jinja.JinjaRenderer`), Cobra model rendering
-    (:class:`~devaci.cobra.CobraBuilder`), input loading
-    (:class:`~devaci.inputs.DataLoader`), output
-    (:class:`~devaci.output.OutputWriter`), history
-    (:class:`~devaci.runlog.RunLog`) and the APIC commit
-    (:class:`~devaci.apic.ApicSession`).
+    rendering (:class:`~devaci.rendering.jinja.JinjaRenderer`), Cobra model
+    rendering (:class:`~devaci.cobra.CobraBuilder`), input loading
+    (:class:`~devaci.inputs.datasets.DataLoader`), output
+    (:class:`~devaci.output.writer.OutputWriter`), history
+    (:class:`~devaci.output.runlog.RunLog`) and the APIC commit
+    (:class:`~devaci.transport.apic.ApicSession`).
 
     Configured through a typed :class:`~devaci.config.DeployConfig`; the legacy
     keyword-argument form (``DeployClass(**kwargs)``) is still supported.
@@ -89,8 +91,11 @@ class DeployClass:
             logger.warning("[Deploy] -> [ConfigError]: No templates configured!")
             return
 
+        run_results: list[dict[str, Any]] = []
         for content, path in self._templates.templates:
-            self._results.append(self._deploy_one(content, path).to_dict())
+            result = self._deploy_one(content, path).to_dict()
+            self._results.append(result)
+            run_results.append(result)
 
         if self._config.show_output:
             self.print_output()
@@ -98,7 +103,8 @@ class DeployClass:
         if self._config.file_output:
             self.save_output(self._config.file_output)
 
-        if not self._testing and self._cobra.result is not None and self._cobra.result.success:
+        all_success = bool(run_results) and all(result["success"] for result in run_results)
+        if not self._testing and all_success:
             self._commit()
 
         if self._config.logging:
@@ -125,7 +131,7 @@ class DeployClass:
             success = True
         except Exception as exc:
             logs.append(f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}.")
-            logger.error(
+            logger.exception(
                 f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}: {exc}"
             )
 
@@ -136,15 +142,11 @@ class DeployClass:
             self._apic.commit(self._cobra.config)
             msg = f"[Deploy]: Template was successfully deployed to APIC: {self._ip}."
             logger.info(msg)
-            self._results.append(
-                {"date": datetime.now().strftime("%d/%m/%Y-%H:%M:%S"), "success": True, "log": msg}
-            )
+            self._results.append(Result(success=True, log=[msg]).to_dict())
         except Exception as exc:
             msg = f"[Deploy] -> [{type(exc).__name__}]: Unable to deploy to APIC: {self._ip}, {exc}"
-            logger.error(msg)
-            self._results.append(
-                {"date": datetime.now().strftime("%d/%m/%Y-%H:%M:%S"), "success": False, "log": msg}
-            )
+            logger.exception(msg)
+            self._results.append(Result(success=False, log=[msg]).to_dict())
 
     # ------------------------------------------------------------------ Output
 
