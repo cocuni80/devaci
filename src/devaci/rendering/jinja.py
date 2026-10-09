@@ -7,7 +7,8 @@ from typing import Any
 import jinja2
 
 from devaci.exceptions import JinjaError
-from devaci.filters import load_yaml, nan_filter, range_filter, str_to_bool
+from devaci.rendering.filters import nan_filter, range_filter, str_to_bool
+from devaci.rendering.yaml_loader import load_yaml
 
 
 class JinjaRenderer:

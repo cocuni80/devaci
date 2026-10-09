@@ -1,8 +1,8 @@
 """Cobra object builders, grouped by ACI domain.
 
 Each handler is registered under the top-level YAML/template key it handles.
-Migrated from ``devaci._legacy.cobra``. Local variables keep the PascalCase
-style of the Cobra SDK to mirror the managed-object class names.
+Local variables keep the PascalCase style of the Cobra SDK to mirror the
+managed-object class names.
 """
 
 from __future__ import annotations
@@ -42,8 +42,7 @@ import cobra.model.stormctrl
 import cobra.model.stp
 import cobra.model.vz
 
-from devaci.cobra.base import not_nan_str
-from devaci.cobra.registry import register
+from devaci.cobra.base import Handler, not_nan_str
 
 if TYPE_CHECKING:
     from devaci.cobra import CobraBuilder
@@ -52,7 +51,6 @@ if TYPE_CHECKING:
 # --------------------------------------------------------------------------- Tenant
 
 
-@register("fvTenant")
 def fv_tenant(builder: CobraBuilder, value: Any) -> None:
     """Tenants > All Tenants."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -60,7 +58,6 @@ def fv_tenant(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(cobra.model.fv.Tenant(Uni, **fvTenant))
 
 
-@register("fvAp")
 def fv_ap(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -71,7 +68,6 @@ def fv_ap(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(Ap)
 
 
-@register("fvAEPg")
 def fv_aepg(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles > Application EPGs."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -96,7 +92,6 @@ def fv_aepg(builder: CobraBuilder, value: Any) -> None:
                     builder.config.addMo(RsPathAtt)
 
 
-@register("staticPath")
 def static_path(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles > Application EPGs > EPG Name > Static Ports."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -114,7 +109,6 @@ def static_path(builder: CobraBuilder, value: Any) -> None:
                         builder.config.addMo(RsPathAtt)
 
 
-@register("fvRsPathAtt")
 def fv_rs_path_att(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles > Application EPGs > EPG Name > Static Ports."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -132,7 +126,6 @@ def fv_rs_path_att(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsPathAtt)
 
 
-@register("tenant_application_uepg")
 def tenant_application_uepg(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles > uSeg EPGs."""
     for item in value:
@@ -140,13 +133,11 @@ def tenant_application_uepg(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(mo)
 
 
-@register("tenant_application_esg")
 def tenant_application_esg(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Application Profiles > Endpoint Security Groups. TODO: implement."""
     pass
 
 
-@register("fvBD")
 def fv_bd(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > Bridge Domains."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -185,7 +176,6 @@ def fv_bd(builder: CobraBuilder, value: Any) -> None:
                     builder.config.addMo(Subnet)
 
 
-@register("fvCtx")
 def fv_ctx(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > VRFs."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -236,31 +226,26 @@ def fv_ctx(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(CtxP)
 
 
-@register("tenant_network_l2out")
 def tenant_network_l2out(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > L2Outs. TODO: implement."""
     pass
 
 
-@register("l3extOut")
 def l3ext_out(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > L3Outs. TODO: implement."""
     pass
 
 
-@register("tenant_network_srmpls_l3out")
 def tenant_network_srmpls_l3out(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > SR-MPLS VRF L3Outs. TODO: implement."""
     pass
 
 
-@register("tenant_dot1q_tunnel")
 def tenant_dot1q_tunnel(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Networking > Dot1Q Tunnels. TODO: implement."""
     pass
 
 
-@register("fvnsAddrInst")
 def fvns_addr_inst(builder: CobraBuilder, value: Any) -> None:
     """Tenants > mgmt > IP Address Pools."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -275,7 +260,6 @@ def fvns_addr_inst(builder: CobraBuilder, value: Any) -> None:
                     builder.config.addMo(UcastAddrBlk)
 
 
-@register("mgmtGrp")
 def mgmt_grp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > mgmt > Managed Node Connectivity Groups."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -306,7 +290,6 @@ def mgmt_grp(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RsAddrInst)
 
 
-@register("mgmtNodeGrp")
 def mgmt_node_grp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > mgmt > Node Management Addresses."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -325,259 +308,216 @@ def mgmt_node_grp(builder: CobraBuilder, value: Any) -> None:
                     builder.config.addMo(NodeBlk)
 
 
-@register("tenant_contract_standard")
 def tenant_contract_standard(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Contracts > Standard. TODO: implement."""
     pass
 
 
-@register("tenant_contract_taboo")
 def tenant_contract_taboo(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Contracts > Taboos. TODO: implement."""
     pass
 
 
-@register("tenant_contract_imported")
 def tenant_contract_imported(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Contracts > Imported. TODO: implement."""
     pass
 
 
-@register("tenant_contract_filter")
 def tenant_contract_filter(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Contracts > Filters. TODO: implement."""
     pass
 
 
-@register("tenant_contract_oob")
 def tenant_contract_oob(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Contracts > Out-Of-Band Contracts. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_bfd")
 def tenant_policy_protocol_bfd(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > BFD. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_bgp")
 def tenant_policy_protocol_bgp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > BGP. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_qos")
 def tenant_policy_protocol_qos(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > Custom QoS. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_dhcp")
 def tenant_policy_protocol_dhcp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > DHCP. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_dataplane")
 def tenant_policy_protocol_dataplane(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > Data Plane Policing. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_eigrp")
 def tenant_policy_protocol_eigrp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > EIGRP. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_endpoint_retention")
 def tenant_policy_protocol_endpoint_retention(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > End Point Retention. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_firsthop_security")
 def tenant_policy_protocol_firsthop_security(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > First Hop Security. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_hsrp")
 def tenant_policy_protocol_hsrp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > HSRP. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_igmp")
 def tenant_policy_protocol_igmp(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > IGMP. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_ip_sla")
 def tenant_policy_protocol_ip_sla(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > IP SLA. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_pbr")
 def tenant_policy_protocol_pbr(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > L4-L7 Policy-Based Redirect. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_ospf")
 def tenant_policy_protocol_ospf(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > OSPF. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_pim")
 def tenant_policy_protocol_pim(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > PIM. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_routemap_multicast")
 def tenant_policy_protocol_routemap_multicast(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > Route Maps for Multicast. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_routemap_control")
 def tenant_policy_protocol_routemap_control(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > Route Maps for Route Control. TODO: implement."""
     pass
 
 
-@register("tenant_policy_protocol_route_tag")
 def tenant_policy_protocol_route_tag(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Protocol > Route Tag. TODO: implement."""
     pass
 
 
-@register("tenant_policy_troubleshooting_span")
 def tenant_policy_troubleshooting_span(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Troubleshooting SPAN. TODO: implement."""
     pass
 
 
-@register("tenant_policy_troubleshooting_traceroute")
 def tenant_policy_troubleshooting_traceroute(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Troubleshooting Traceroute. TODO: implement."""
     pass
 
 
-@register("tenant_policy_monitoring")
 def tenant_policy_monitoring(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Monitoring. TODO: implement."""
     pass
 
 
-@register("tenant_policy_netflow")
 def tenant_policy_netflow(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > NetFlow. TODO: implement."""
     pass
 
 
-@register("tenant_policy_vmm")
 def tenant_policy_vmm(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > VMM. TODO: implement."""
     pass
 
 
-@register("tenant_service_parameter")
 def tenant_service_parameter(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Service Parameters. TODO: implement."""
     pass
 
 
-@register("tenant_service_graph_template")
 def tenant_service_graph_template(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Service Graph Templates. TODO: implement."""
     pass
 
 
-@register("tenant_service_router_configuration")
 def tenant_service_router_configuration(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Router Configuration. TODO: implement."""
     pass
 
 
-@register("tenant_service_function_profile")
 def tenant_service_function_profile(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Function Profiles. TODO: implement."""
     pass
 
 
-@register("tenant_service_devices")
 def tenant_service_devices(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Devices. TODO: implement."""
     pass
 
 
-@register("tenant_service_imported_device")
 def tenant_service_imported_device(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Imported Devices. TODO: implement."""
     pass
 
 
-@register("tenant_service_device_policy")
 def tenant_service_device_policy(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Device Selection Policies. TODO: implement."""
     pass
 
 
-@register("tenant_service_deployed_graph_instance")
 def tenant_service_deployed_graph_instance(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Deployed Graph Instances. TODO: implement."""
     pass
 
 
-@register("tenant_service_deployed_device")
 def tenant_service_deployed_device(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Deployed Devices. TODO: implement."""
     pass
 
 
-@register("tenant_service_device_manager")
 def tenant_service_device_manager(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Device Managers. TODO: implement."""
     pass
 
 
-@register("tenant_service_chassis")
 def tenant_service_chassis(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Policies > Services > L4-L7 > Chassis. TODO: implement."""
     pass
 
 
-@register("tenant_node_management_epg")
 def tenant_node_management_epg(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Node Management EPGs. TODO: implement."""
     pass
 
 
-@register("tenant_external_management_profile")
 def tenant_external_management_profile(builder: CobraBuilder, value: Any) -> None:
     """Tenants > External Management Network Instance Profiles. TODO: implement."""
     pass
 
 
-@register("tenant_node_management_address")
 def tenant_node_management_address(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Node Management Address. TODO: implement."""
     pass
 
 
-@register("tenant_node_management_static")
 def tenant_node_management_static(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Node Management Address > Static Node Management Address. TODO: implement."""
     pass
 
 
-@register("tenant_node_connection_group")
 def tenant_node_connection_group(builder: CobraBuilder, value: Any) -> None:
     """Tenants > Managed Node Connectivity Groups. TODO: implement."""
     pass
@@ -586,7 +526,6 @@ def tenant_node_connection_group(builder: CobraBuilder, value: Any) -> None:
 # --------------------------------------------------------------------------- Fabric
 
 
-@register("fabricSetupPol")
 def fabric_setup_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Inventory > Pod Fabric Setup Policy."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -600,7 +539,6 @@ def fabric_setup_pol(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(SetupP)
 
 
-@register("fabricRsOosPath")
 def fabric_rs_oos_path(builder: CobraBuilder, value: Any) -> None:
     """Fabric > RsOosPath."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -611,7 +549,6 @@ def fabric_rs_oos_path(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(RsOosPath)
 
 
-@register("fabricSetupP")
 def fabric_setup_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Inventory > Pod Fabric Setup Policy."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -623,7 +560,6 @@ def fabric_setup_p(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(SetupP)
 
 
-@register("fabricNodeIdentPol")
 def fabric_node_ident_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Inventory > Fabric Membership."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -637,7 +573,6 @@ def fabric_node_ident_pol(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(NodeIdentP)
 
 
-@register("fabricPodPGrp")
 def fabric_pod_p_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Pods > Policy Groups."""
     for item in value:
@@ -663,7 +598,6 @@ def fabric_pod_p_grp(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(mo)
 
 
-@register("fabricPodP")
 def fabric_pod_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Pods > Profiles."""
     for item in value:
@@ -679,79 +613,66 @@ def fabric_pod_p(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(mo)
 
 
-@register("fabric_switch_leaf_profile")
 def fabric_switch_leaf_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Switches > Leaf Switches > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_switch_leaf_policy_group")
 def fabric_switch_leaf_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Switches > Leaf Switches > Policy Groups. TODO: implement."""
     pass
 
 
-@register("fabric_switch_spine_profile")
 def fabric_switch_spine_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Switches > Spine Switches > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_switch_spine_policy_group")
 def fabric_switch_spine_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Switches > Spine Switches > Policy Groups. TODO: implement."""
     pass
 
 
-@register("fabric_module_leaf_profile")
 def fabric_module_leaf_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Modules > Leaf Modules > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_module_leaf_policy_group")
 def fabric_module_leaf_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Modules > Leaf Modules > Policy Groups. TODO: implement."""
     pass
 
 
-@register("fabric_module_spine_profile")
 def fabric_module_spine_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Modules > Spine Modules > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_module_spine_policy_group")
 def fabric_module_spine_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Modules > Spine Modules > Policy Groups. TODO: implement."""
     pass
 
 
-@register("fabric_interface_leaf_profile")
 def fabric_interface_leaf_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Interfaces > Leaf Interfaces > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_interface_leaf_policy_group")
 def fabric_interface_leaf_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Interfaces > Leaf Interfaces > Policy Groups. TODO: implement."""
     pass
 
 
-@register("fabric_interface_spine_profile")
 def fabric_interface_spine_profile(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Interfaces > Spine Interfaces > Profiles. TODO: implement."""
     pass
 
 
-@register("fabric_interface_spine_policy_group")
 def fabric_interface_spine_policy_group(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Interfaces > Spine Interfaces > Policy Groups. TODO: implement."""
     pass
 
 
-@register("datetimePol")
 def datetime_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Pod > Date and Time."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -783,7 +704,6 @@ def datetime_pol(builder: CobraBuilder, value: Any) -> None:
                             builder.config.addMo(RsNtpProvToEpg)
 
 
-@register("snmpPol")
 def snmp_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Pod > SNMP."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -825,7 +745,6 @@ def snmp_pol(builder: CobraBuilder, value: Any) -> None:
                         builder.config.addMo(TrapFwdServerP)
 
 
-@register("commPol")
 def comm_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Pod > Management Access."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -854,7 +773,6 @@ def comm_pol(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(Shellinabox)
 
 
-@register("fabric_policy_switch_callhome")
 def fabric_policy_switch_callhome(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Switch > Callhome Inventory. TODO: implement."""
     pass
@@ -863,7 +781,6 @@ def fabric_policy_switch_callhome(builder: CobraBuilder, value: Any) -> None:
 # --------------------------------------------------------------------------- Infra
 
 
-@register("infraNodeP")
 def infra_node_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Switches > Leaf Switches > Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -893,7 +810,6 @@ def infra_node_p(builder: CobraBuilder, value: Any) -> None:
                     builder.config.addMo(RsAccPortP)
 
 
-@register("infraAccNodePGrp")
 def infra_acc_node_p_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Switches > Leaf Switches > Policy Groups."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1036,7 +952,6 @@ def infra_acc_node_p_grp(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RsLeafPGrpToCdpIfPol)
 
 
-@register("infraSpineP")
 def infra_spine_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Switches > Spine Switches > Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1063,7 +978,6 @@ def infra_spine_p(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsSpAccPortP)
 
 
-@register("infraSpineAccNodePGrp")
 def infra_spine_acc_node_p_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Switches > Spine Switches > Policy Groups."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1104,7 +1018,6 @@ def infra_spine_acc_node_p_grp(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsSpinePGrpToLldpIfPol)
 
 
-@register("infraSpAccPortP")
 def infra_sp_acc_port_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Spine Interfaces > Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1127,7 +1040,6 @@ def infra_sp_acc_port_p(builder: CobraBuilder, value: Any) -> None:
                         builder.config.addMo(PortBlk)
 
 
-@register("infraSpAccPortGrp")
 def infra_sp_acc_port_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Spine Interfaces > Policy Groups."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1168,7 +1080,6 @@ def infra_sp_acc_port_grp(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsCoppIfPol)
 
 
-@register("infraAccPortP")
 def infra_acc_port_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Leaf Interfaces > Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1193,7 +1104,6 @@ def infra_acc_port_p(builder: CobraBuilder, value: Any) -> None:
                             builder.config.addMo(PortBlk)
 
 
-@register("infraFexP")
 def infra_fex_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Leaf Interfaces > FEX Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1219,7 +1129,6 @@ def infra_fex_p(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(FexBndlGrp)
 
 
-@register("infraAccPortGrp")
 def infra_acc_port_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Leaf Interfaces > Policy Groups > Access."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1364,7 +1273,6 @@ def infra_acc_port_grp(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RsL2PortAuthPol)
 
 
-@register("infraAccBndlGrp")
 def infra_acc_bndl_grp(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Interfaces > Leaf Interfaces > Policy Groups > PC or VPC."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1509,7 +1417,6 @@ def infra_acc_bndl_grp(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RsLinkFlapPol)
 
 
-@register("infraAttEntityP")
 def infra_att_entity_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Global > Attachable Access Entity Profiles."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1523,7 +1430,6 @@ def infra_att_entity_p(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RsDomP)
 
 
-@register("fvnsVlanInstP")
 def fvns_vlan_inst_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Pools > VLAN."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1537,7 +1443,6 @@ def fvns_vlan_inst_p(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(EncapBlk)
 
 
-@register("physDomP")
 def phys_dom_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Physical and External Domains > Physical Domain."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1549,7 +1454,6 @@ def phys_dom_p(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsVlanNs)
 
 
-@register("l3extDomP")
 def l3ext_dom_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Physical and External Domains > L3 Domains."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1561,7 +1465,6 @@ def l3ext_dom_p(builder: CobraBuilder, value: Any) -> None:
             builder.config.addMo(RsVlanNs)
 
 
-@register("l2extDomP")
 def l2ext_dom_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Physical and External Domains > External Bridged Domains."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1576,7 +1479,6 @@ def l2ext_dom_p(builder: CobraBuilder, value: Any) -> None:
 # --------------------------------------------------------------------------- Policies
 
 
-@register("fabricProtPol")
 def fabric_prot_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Switch > Virtual Port Channel default."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1599,7 +1501,6 @@ def fabric_prot_pol(builder: CobraBuilder, value: Any) -> None:
                         builder.config.addMo(NodePEp)
 
 
-@register("fabricHIfPol")
 def fabric_h_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > Link Level."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1609,7 +1510,6 @@ def fabric_h_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(HIfPol)
 
 
-@register("qosPfcIfPol")
 def qos_pfc_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > Priority Flow Control."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1619,7 +1519,6 @@ def qos_pfc_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(PfcIfPol)
 
 
-@register("cdpIfPol")
 def cdp_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > CDP Interface."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1629,7 +1528,6 @@ def cdp_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IfPol)
 
 
-@register("lldpIfPol")
 def lldp_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > LLDP Interface."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1639,7 +1537,6 @@ def lldp_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IfPol)
 
 
-@register("lacpLagPol")
 def lacp_lag_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > Port Channel."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1649,7 +1546,6 @@ def lacp_lag_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(LagPol)
 
 
-@register("stpIfPol")
 def stp_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > Spanning Tree Interface."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1659,7 +1555,6 @@ def stp_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IfPol)
 
 
-@register("stormctrlIfPol")
 def stormctrl_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > Storm Control."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1669,7 +1564,6 @@ def stormctrl_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IfPol)
 
 
-@register("mcpIfPol")
 def mcp_if_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Policies > Interface > MCP Interface."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1679,7 +1573,6 @@ def mcp_if_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IfPol)
 
 
-@register("bgpInstPol")
 def bgp_inst_pol(builder: CobraBuilder, value: Any) -> None:
     """System Settings > All Tenants."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -1704,7 +1597,6 @@ def bgp_inst_pol(builder: CobraBuilder, value: Any) -> None:
                 builder.config.addMo(RRNodePEp)
 
 
-@register("coopPol")
 def coop_pol(builder: CobraBuilder, value: Any) -> None:
     """System Settings > COOP Group."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -1713,7 +1605,6 @@ def coop_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(Pol)
 
 
-@register("datetimeFormat")
 def datetime_format(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Date and Time."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -1722,7 +1613,6 @@ def datetime_format(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(Format)
 
 
-@register("aaaFabricSec")
 def aaa_fabric_sec(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Fabric Security."""
     UserEp = cobra.model.aaa.UserEp(builder.uni)
@@ -1731,7 +1621,6 @@ def aaa_fabric_sec(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(FabricSec)
 
 
-@register("aaaPreLoginBanner")
 def aaa_pre_login_banner(builder: CobraBuilder, value: Any) -> None:
     """System Settings > System Alias and Banners."""
     UserEp = cobra.model.aaa.UserEp(builder.uni)
@@ -1740,7 +1629,6 @@ def aaa_pre_login_banner(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(PreLoginBanner)
 
 
-@register("pkiExportEncryptionKey")
 def pki_export_encryption_key(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Fabric Security."""
     for pkiExportEncryptionKey in value:
@@ -1750,7 +1638,6 @@ def pki_export_encryption_key(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(ExportEncryptionKey)
 
 
-@register("epLoopProtectP")
 def ep_loop_protect_p(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Enpoint Controls > The endpoint loop protection."""
     Infra = cobra.model.infra.Infra(builder.uni)
@@ -1759,7 +1646,6 @@ def ep_loop_protect_p(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(LoopProtectP)
 
 
-@register("epControlP")
 def ep_control_p(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Enpoint Controls > Rogue EP Control."""
     Infra = cobra.model.infra.Infra(builder.uni)
@@ -1768,7 +1654,6 @@ def ep_control_p(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(ControlP)
 
 
-@register("epIpAgingP")
 def ep_ip_aging_p(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Enpoint Controls > IP Aging."""
     Infra = cobra.model.infra.Infra(builder.uni)
@@ -1777,7 +1662,6 @@ def ep_ip_aging_p(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(IpAgingP)
 
 
-@register("infraSetPol")
 def infra_set_pol(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Fabric-Wide Settings."""
     Infra = cobra.model.infra.Infra(builder.uni)
@@ -1786,7 +1670,6 @@ def infra_set_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(SetPol)
 
 
-@register("isisDomPol")
 def isis_dom_pol(builder: CobraBuilder, value: Any) -> None:
     """System Settings > ISIS Policy."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -1795,7 +1678,6 @@ def isis_dom_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(DomPol)
 
 
-@register("infraPortTrackPol")
 def infra_port_track_pol(builder: CobraBuilder, value: Any) -> None:
     """System Settings > Port Tracking."""
     Infra = cobra.model.infra.Infra(builder.uni)
@@ -1804,7 +1686,6 @@ def infra_port_track_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(PortTrackPol)
 
 
-@register("mcpInstPol")
 def mcp_inst_pol(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Access Policies > Global > MCP Instance Policy default."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1814,7 +1695,6 @@ def mcp_inst_pol(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(InstPol)
 
 
-@register("fabricNodeControl")
 def fabric_node_control(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Monitoring > Fabric Node Controls > default."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1824,7 +1704,6 @@ def fabric_node_control(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(NodeControl)
 
 
-@register("geoSite")
 def geo_site(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Geolocation."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1864,7 +1743,6 @@ def geo_site(builder: CobraBuilder, value: Any) -> None:
                                                                 builder.config.addMo(RsNodeLocation)
 
 
-@register("latencyPtpMode")
 def latency_ptp_mode(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Monitoring > Fabric Node Controls > default."""
     Inst = cobra.model.fabric.Inst(builder.uni)
@@ -1873,7 +1751,6 @@ def latency_ptp_mode(builder: CobraBuilder, value: Any) -> None:
         builder.config.addMo(PtpMode)
 
 
-@register("infrazoneZoneP")
 def infrazone_zone_p(builder: CobraBuilder, value: Any) -> None:
     """Fabric > Fabric Policies > Policies > Monitoring > Fabric Node Controls > default."""
     Uni = cobra.model.pol.Uni(builder.root)
@@ -1884,3 +1761,131 @@ def infrazone_zone_p(builder: CobraBuilder, value: Any) -> None:
         if "Zone" in infrazoneZone:
             Zone = cobra.model.infrazone.Zone(ZoneP, **infrazoneZone["Zone"])
             builder.config.addMo(Zone)
+
+
+# --------------------------------------------------------------------------- Registry
+
+BUILDERS: dict[str, Handler] = {
+    "fvTenant": fv_tenant,
+    "fvAp": fv_ap,
+    "fvAEPg": fv_aepg,
+    "staticPath": static_path,
+    "fvRsPathAtt": fv_rs_path_att,
+    "tenant_application_uepg": tenant_application_uepg,
+    "tenant_application_esg": tenant_application_esg,
+    "fvBD": fv_bd,
+    "fvCtx": fv_ctx,
+    "tenant_network_l2out": tenant_network_l2out,
+    "l3extOut": l3ext_out,
+    "tenant_network_srmpls_l3out": tenant_network_srmpls_l3out,
+    "tenant_dot1q_tunnel": tenant_dot1q_tunnel,
+    "fvnsAddrInst": fvns_addr_inst,
+    "mgmtGrp": mgmt_grp,
+    "mgmtNodeGrp": mgmt_node_grp,
+    "tenant_contract_standard": tenant_contract_standard,
+    "tenant_contract_taboo": tenant_contract_taboo,
+    "tenant_contract_imported": tenant_contract_imported,
+    "tenant_contract_filter": tenant_contract_filter,
+    "tenant_contract_oob": tenant_contract_oob,
+    "tenant_policy_protocol_bfd": tenant_policy_protocol_bfd,
+    "tenant_policy_protocol_bgp": tenant_policy_protocol_bgp,
+    "tenant_policy_protocol_qos": tenant_policy_protocol_qos,
+    "tenant_policy_protocol_dhcp": tenant_policy_protocol_dhcp,
+    "tenant_policy_protocol_dataplane": tenant_policy_protocol_dataplane,
+    "tenant_policy_protocol_eigrp": tenant_policy_protocol_eigrp,
+    "tenant_policy_protocol_endpoint_retention": tenant_policy_protocol_endpoint_retention,
+    "tenant_policy_protocol_firsthop_security": tenant_policy_protocol_firsthop_security,
+    "tenant_policy_protocol_hsrp": tenant_policy_protocol_hsrp,
+    "tenant_policy_protocol_igmp": tenant_policy_protocol_igmp,
+    "tenant_policy_protocol_ip_sla": tenant_policy_protocol_ip_sla,
+    "tenant_policy_protocol_pbr": tenant_policy_protocol_pbr,
+    "tenant_policy_protocol_ospf": tenant_policy_protocol_ospf,
+    "tenant_policy_protocol_pim": tenant_policy_protocol_pim,
+    "tenant_policy_protocol_routemap_multicast": tenant_policy_protocol_routemap_multicast,
+    "tenant_policy_protocol_routemap_control": tenant_policy_protocol_routemap_control,
+    "tenant_policy_protocol_route_tag": tenant_policy_protocol_route_tag,
+    "tenant_policy_troubleshooting_span": tenant_policy_troubleshooting_span,
+    "tenant_policy_troubleshooting_traceroute": tenant_policy_troubleshooting_traceroute,
+    "tenant_policy_monitoring": tenant_policy_monitoring,
+    "tenant_policy_netflow": tenant_policy_netflow,
+    "tenant_policy_vmm": tenant_policy_vmm,
+    "tenant_service_parameter": tenant_service_parameter,
+    "tenant_service_graph_template": tenant_service_graph_template,
+    "tenant_service_router_configuration": tenant_service_router_configuration,
+    "tenant_service_function_profile": tenant_service_function_profile,
+    "tenant_service_devices": tenant_service_devices,
+    "tenant_service_imported_device": tenant_service_imported_device,
+    "tenant_service_device_policy": tenant_service_device_policy,
+    "tenant_service_deployed_graph_instance": tenant_service_deployed_graph_instance,
+    "tenant_service_deployed_device": tenant_service_deployed_device,
+    "tenant_service_device_manager": tenant_service_device_manager,
+    "tenant_service_chassis": tenant_service_chassis,
+    "tenant_node_management_epg": tenant_node_management_epg,
+    "tenant_external_management_profile": tenant_external_management_profile,
+    "tenant_node_management_address": tenant_node_management_address,
+    "tenant_node_management_static": tenant_node_management_static,
+    "tenant_node_connection_group": tenant_node_connection_group,
+    "fabricSetupPol": fabric_setup_pol,
+    "fabricRsOosPath": fabric_rs_oos_path,
+    "fabricSetupP": fabric_setup_p,
+    "fabricNodeIdentPol": fabric_node_ident_pol,
+    "fabricPodPGrp": fabric_pod_p_grp,
+    "fabricPodP": fabric_pod_p,
+    "fabric_switch_leaf_profile": fabric_switch_leaf_profile,
+    "fabric_switch_leaf_policy_group": fabric_switch_leaf_policy_group,
+    "fabric_switch_spine_profile": fabric_switch_spine_profile,
+    "fabric_switch_spine_policy_group": fabric_switch_spine_policy_group,
+    "fabric_module_leaf_profile": fabric_module_leaf_profile,
+    "fabric_module_leaf_policy_group": fabric_module_leaf_policy_group,
+    "fabric_module_spine_profile": fabric_module_spine_profile,
+    "fabric_module_spine_policy_group": fabric_module_spine_policy_group,
+    "fabric_interface_leaf_profile": fabric_interface_leaf_profile,
+    "fabric_interface_leaf_policy_group": fabric_interface_leaf_policy_group,
+    "fabric_interface_spine_profile": fabric_interface_spine_profile,
+    "fabric_interface_spine_policy_group": fabric_interface_spine_policy_group,
+    "datetimePol": datetime_pol,
+    "snmpPol": snmp_pol,
+    "commPol": comm_pol,
+    "fabric_policy_switch_callhome": fabric_policy_switch_callhome,
+    "infraNodeP": infra_node_p,
+    "infraAccNodePGrp": infra_acc_node_p_grp,
+    "infraSpineP": infra_spine_p,
+    "infraSpineAccNodePGrp": infra_spine_acc_node_p_grp,
+    "infraSpAccPortP": infra_sp_acc_port_p,
+    "infraSpAccPortGrp": infra_sp_acc_port_grp,
+    "infraAccPortP": infra_acc_port_p,
+    "infraFexP": infra_fex_p,
+    "infraAccPortGrp": infra_acc_port_grp,
+    "infraAccBndlGrp": infra_acc_bndl_grp,
+    "infraAttEntityP": infra_att_entity_p,
+    "fvnsVlanInstP": fvns_vlan_inst_p,
+    "physDomP": phys_dom_p,
+    "l3extDomP": l3ext_dom_p,
+    "l2extDomP": l2ext_dom_p,
+    "fabricProtPol": fabric_prot_pol,
+    "fabricHIfPol": fabric_h_if_pol,
+    "qosPfcIfPol": qos_pfc_if_pol,
+    "cdpIfPol": cdp_if_pol,
+    "lldpIfPol": lldp_if_pol,
+    "lacpLagPol": lacp_lag_pol,
+    "stpIfPol": stp_if_pol,
+    "stormctrlIfPol": stormctrl_if_pol,
+    "mcpIfPol": mcp_if_pol,
+    "bgpInstPol": bgp_inst_pol,
+    "coopPol": coop_pol,
+    "datetimeFormat": datetime_format,
+    "aaaFabricSec": aaa_fabric_sec,
+    "aaaPreLoginBanner": aaa_pre_login_banner,
+    "pkiExportEncryptionKey": pki_export_encryption_key,
+    "epLoopProtectP": ep_loop_protect_p,
+    "epControlP": ep_control_p,
+    "epIpAgingP": ep_ip_aging_p,
+    "infraSetPol": infra_set_pol,
+    "isisDomPol": isis_dom_pol,
+    "infraPortTrackPol": infra_port_track_pol,
+    "mcpInstPol": mcp_inst_pol,
+    "fabricNodeControl": fabric_node_control,
+    "geoSite": geo_site,
+    "latencyPtpMode": latency_ptp_mode,
+    "infrazoneZoneP": infrazone_zone_p,
+}

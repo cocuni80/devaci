@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from devaci.cobra import CobraBuilder
 from devaci.results import CobraResult, DeployResult, JinjaResult, Result
 
 
@@ -30,6 +31,18 @@ def test_cobra_result_none_config():
     result = CobraResult(config=None)
     assert result.xml is None
     assert result.json is None
+
+
+def test_cobra_result_payloads():
+    builder = CobraBuilder()
+    builder.render({"fvTenant": [{"name": "acme"}]})
+
+    result = CobraResult(success=True, config=builder.config)
+
+    assert result.xml is not None
+    assert "acme" in result.xml
+    assert result.json is not None
+    assert "fvTenant" in result.json
 
 
 def test_results_are_frozen():

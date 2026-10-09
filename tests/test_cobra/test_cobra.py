@@ -1,17 +1,6 @@
-import cobra.mit.request
-import cobra.model.coop
-
 from devaci.cobra import CobraBuilder
 from devaci.cobra.base import not_nan_str
-from devaci.cobra.registry import REGISTRY
-
-
-def test_cobra_model_coop_available():
-    assert hasattr(cobra.model.coop, "Pol")
-
-
-def test_cobra_mit_request_available():
-    assert hasattr(cobra.mit.request, "ConfigRequest")
+from devaci.cobra.builders import BUILDERS
 
 
 def test_not_nan_str():
@@ -54,6 +43,30 @@ def test_cobra_builder_skips_empty_values():
     assert result.success is False
 
 
-def test_registry_handlers_are_callable():
-    assert "fvTenant" in REGISTRY
-    assert all(callable(handler) for handler in REGISTRY.values())
+def test_cobra_builder_accumulates_across_renders():
+    builder = CobraBuilder()
+    builder.render({"fvTenant": [{"name": "one"}]})
+    builder.render({"fvTenant": [{"name": "two"}]})
+
+    xml = builder.xml
+    assert xml is not None
+    assert "one" in xml
+    assert "two" in xml
+    assert xml.count("<fvTenant ") == 2
+
+
+def test_builders_mapping():
+    assert "fvTenant" in BUILDERS
+    assert all(callable(handler) for handler in BUILDERS.values())
+
+
+def test_cobra_builder_handler_error(monkeypatch):
+    def boom(builder, value):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(BUILDERS, "fvTenant", boom)
+
+    result = CobraBuilder().render({"fvTenant": [{"name": "acme"}]})
+
+    assert result.success is False
+    assert any("failed" in msg for msg in result.log)
