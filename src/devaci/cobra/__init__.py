@@ -56,6 +56,14 @@ class CobraBuilder:
         """Return the rendered JSON payload as a dict, or None when the config is empty."""
         return config_json(self.config)
 
+    def add(self, mo: Any) -> None:
+        """Add a managed object to the accumulated configuration tree.
+
+        Single choke point for every object; handlers call this instead of
+        touching :attr:`config` directly.
+        """
+        self.config.addMo(mo)
+
     def render(self, output: dict[str, Any]) -> CobraResult:
         """Render ``output`` through the registered handlers.
 
