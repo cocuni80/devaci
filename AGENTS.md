@@ -54,4 +54,4 @@ Gitignored and private: `vendor/`, `data/` (real `.xlsx`/`.j2`), `outputs/`, `te
 ## Versioning & branches
 
 - Version lives ONLY in `pyproject.toml`; `devaci/__init__.py` reads it via `importlib.metadata`. Do not hardcode or bump it except when publishing.
-- `main` = stable `1.x`; `next` = `2.x` pre-releases (`2.0.0a2` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main`) publishes on GitHub release via trusted publishing.
+- `main` = stable `1.x`; `next` = `2.x` pre-releases (`2.0.0a3` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main` and `next`) publishes on GitHub release via trusted publishing.

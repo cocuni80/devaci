@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devaci"
-version = "2.0.0a2"
+version = "2.0.0a3"
 description = "Python library that generates Cisco ACI configuration and optionally pushes it to an APIC controller via Cisco's official Cobra SDK."
 readme = "README.md"
 requires-python = ">=3.10"
