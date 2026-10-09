@@ -44,14 +44,14 @@ from devaci import DeployClass
 
 aci = DeployClass(
     testing=True,                 # True = dry run, no APIC credentials prompted
-    working_folder=Path.cwd(),    # base folder for templates/data/outputs
+    working_folder=Path.cwd() / "tests/testing",  # private test data + outputs
     file_output="outputs/scripts/config",   # optional: save XML/JSON
     show_output=False,            # print the rendered config to the terminal
     logging=True,                 # append results to logging_output (JSON)
 )
 
 aci.xlsx = "data/aci.xlsx"        # load every sheet into template variables
-aci.template = "templates/tenant.j2"
+aci.template = "data/templates/tenant.j2"
 aci.deploy()
 
 print(aci.config)                 # rendered XML (or JSON dict)
@@ -134,7 +134,8 @@ aci = DeployClass(
 ## Output
 
 - `render_to_xml=True` (default): config is XML (`.xml`); otherwise JSON (`.json`).
-- `file_output="outputs/scripts/config"`: write the rendered config to disk.
+- `file_output="outputs/scripts/config"`: write the rendered config to disk
+  (paths are relative to `working_folder`).
 - `show_output=True`: pretty-print the rendered config to the terminal.
 - `save_output(name)` / `print_output()` can be called directly.
 
@@ -156,8 +157,9 @@ propagate to the stdlib root logger, so per-module levels can be tuned with
 normal logging configuration. Terminal output of rendered configuration and the
 APIC countdown go through the shared rich console in `devaci.console`.
 
-> `RunLog` (`logging_output`, default `outputs/logs/logging.json`) is a JSON
-> **execution history**, not stdlib logging. Disable with `logging=False`.
+> `RunLog` (`logging_output`, default `outputs/logs/logging.json`, relative to
+> `working_folder`) is a JSON **execution history**, not stdlib logging. Disable
+> with `logging=False`.
 
 ## Project structure
 

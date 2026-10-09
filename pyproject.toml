@@ -56,9 +56,12 @@ packages = ["src/devaci"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/devaci", "tests", "README.md", "LICENSE"]
+# Never ship the private test folder (real .xlsx/.j2, outputs, scratch).
+exclude = ["tests/testing"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["tests/testing"]
 addopts = "-ra"
 
 [tool.coverage.run]

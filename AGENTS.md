@@ -42,12 +42,12 @@ The package is organized by layer: `inputs/` (templates + tabular data), `render
 
 - `load_yaml` (`src/devaci/rendering/yaml_loader.py`) uses a custom loader that deliberately does NOT coerce YAML ints/floats/bools - everything stays a string so APIC values are not mangled. Do not swap in `yaml.safe_load`.
 - `DeployClass` does not prompt at construction; it prompts interactively for missing APIC credentials (via `getpass`) only when committing, unless `testing=True`. Use `testing=True` to dry-run.
-- The manual end-to-end runner is `tests/testing/run_deploy.py` (sets `TESTING = True` to avoid the credential prompt). It is a gitignored script, NOT a pytest test.
+- The manual end-to-end runner is `tests/testing/run_deploy.py` (sets `TESTING = True` to avoid the credential prompt). It is a gitignored script, NOT a pytest test. It derives the repo root from its own path (works from any cwd) and can run via `uv run` (local `src/`) or with `tests/testing/release-$VERSION/.venv/bin/python` (PyPI artifact); see `DO_NOT_PUBLISH.md`.
 - `pyproject.toml` uses `strict = true` for mypy and ruff `select = [E, F, I, N, UP, B, SIM]`, `line-length = 100`.
 
 ## Never commit / never publish
 
-Gitignored and private: `vendor/`, `data/` (real `.xlsx`/`.j2`), `outputs/`, `tests/testing/`, `dist/`, `DO_NOT_PUBLISH.md`, `.env`. `.env` holds a live `UV_PUBLISH_TOKEN`; do not print, commit, or expose it.
+Gitignored and private: `vendor/` (Cobra SDK wheels), `tests/testing/` (real `.xlsx`/`.j2` inputs, generated `outputs/`, scratch), `dist/`, `DO_NOT_PUBLISH.md`, `.env`. `.env` holds a live `UV_PUBLISH_TOKEN`; do not print, commit, or expose it.
 
 `DO_NOT_PUBLISH.md` documents the release/branching procedure and is the reference for versioning.
 
