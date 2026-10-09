@@ -7,21 +7,18 @@ import xml.dom.minidom
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console
 from rich.syntax import Syntax
 
-from devaci.console import get_logger
+from devaci.console import get_console, get_logger
 
 logger = get_logger(__name__)
-
-console = Console()
 
 
 def print_syntax(
     content: str, lexer: str, theme: str = "fruity", line_numbers: bool = True
 ) -> None:
     """Pretty-print highlighted source (XML/JSON) to the terminal."""
-    console.print(Syntax(content, lexer, theme=theme, line_numbers=line_numbers))
+    get_console().print(Syntax(content, lexer, theme=theme, line_numbers=line_numbers))
 
 
 class OutputWriter:
@@ -45,8 +42,8 @@ class OutputWriter:
                 text = json.dumps(content, indent=4, ensure_ascii=False)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(text, encoding="utf-8")
-        except Exception as exc:
-            logger.exception(f"[SaveOutputError]: Failed to save output file! {exc}")
+        except Exception:
+            logger.exception("Failed to save output file %s.", output_path)
 
     def show(self, content: Any, theme: str = "fruity", line_numbers: bool = True) -> None:
         """Pretty-print ``content`` to the terminal."""
@@ -61,5 +58,5 @@ class OutputWriter:
                 text = json.dumps(content, indent=4, ensure_ascii=False)
                 lexer = "json"
             print_syntax(text, lexer, theme=theme, line_numbers=line_numbers)
-        except Exception as exc:
-            logger.exception(f"[PrintOutputError]: Error printing output! {exc}")
+        except Exception:
+            logger.exception("Failed to print output.")

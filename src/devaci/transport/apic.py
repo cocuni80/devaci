@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import contextlib
-import sys
 import time
 from typing import Any
 
 import cobra.mit.access
 import cobra.mit.session
 
-from devaci.console import get_logger
+from devaci.console import get_console, get_logger
 
 logger = get_logger(__name__)
 
@@ -35,9 +34,7 @@ class ApicSession:
         self._ip = ip
         self._timer = timer
         if not secure:
-            logger.warning(
-                "[ApicSession]: TLS certificate verification is disabled (secure=False)."
-            )
+            logger.warning("TLS certificate verification is disabled (secure=False).")
             self._disable_tls_warnings()
         self._session = cobra.mit.session.LoginSession(url, username, password, secure, timeout)
         self._modir = cobra.mit.access.MoDirectory(self._session)
@@ -63,9 +60,9 @@ class ApicSession:
                 self._modir.logout()
 
     def _countdown(self) -> None:
+        console = get_console()
         message = f"Deploying templates to APIC [{self._ip}] in"
         for remaining in range(self._timer, -1, -1):
-            sys.stdout.write(f"\r{message} {remaining} seconds")
-            sys.stdout.flush()
+            console.print(f"{message} {remaining} seconds", end="\r", markup=False)
             time.sleep(1)
-        sys.stdout.write("\n")
+        console.print()

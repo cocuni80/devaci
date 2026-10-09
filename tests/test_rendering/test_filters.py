@@ -30,7 +30,10 @@ def test_range_filter_invalid_raises(value):
 
 def test_nan_filter():
     assert nan_filter("nan") is False
+    assert nan_filter(" NaN ") is False
+    assert nan_filter(float("nan")) is False
     assert nan_filter("value") is True
+    assert nan_filter(42) is True
 
 
 def test_str_to_bool():

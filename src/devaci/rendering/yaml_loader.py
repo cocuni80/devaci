@@ -16,6 +16,8 @@ from yaml.reader import Reader
 from yaml.resolver import Resolver
 from yaml.scanner import Scanner
 
+from devaci._values import is_nan_text
+
 
 def no_convert_int_constructor(loader: Any, node: Any) -> Any:
     """Keep YAML integers as their original string."""
@@ -33,7 +35,7 @@ def replace_str_nan_with_empty(obj: Any) -> Any:
         return {k: replace_str_nan_with_empty(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [replace_str_nan_with_empty(v) for v in obj]
-    if isinstance(obj, str) and obj.strip().lower() == "nan":
+    if is_nan_text(obj):
         return ""
     return obj
 

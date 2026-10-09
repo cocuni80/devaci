@@ -19,9 +19,7 @@ def test_config_defaults():
 
 
 def test_config_from_kwargs():
-    config = DeployConfig.from_kwargs(
-        testing=True, ip="10.0.0.1", timeout=30, filter_by="name"
-    )
+    config = DeployConfig.from_kwargs(testing=True, ip="10.0.0.1", timeout=30, filter_by="name")
     assert config.testing is True
     assert config.ip == "10.0.0.1"
     assert config.timeout == 30

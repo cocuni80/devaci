@@ -50,7 +50,7 @@ class CobraResult(Result):
         return config_xml(self.config)
 
     @property
-    def json(self) -> Any:
+    def json(self) -> dict[str, Any] | None:
         return config_json(self.config)
 
     def to_dict(self) -> dict[str, Any]:

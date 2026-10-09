@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Sequence
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -38,9 +38,13 @@ class DeployConfig:
     filters_source_sheet: str | None = None
     filters_condition_field: str = "enabled"
     filters_output_field: str = "name"
-    filters: Iterable[str] | None = None
+    filters: Sequence[str] | None = None
     filter_by: str = "tag"
     working_folder: Path = field(default_factory=Path.cwd)
+
+    def __post_init__(self) -> None:
+        if self.filters is not None:
+            self.filters = list(self.filters)
 
     @classmethod
     def from_kwargs(cls, **kwargs: Any) -> DeployConfig:
@@ -51,5 +55,5 @@ class DeployConfig:
         """
         known = {item.name for item in fields(cls)}
         for key in sorted(set(kwargs) - known):
-            logger.warning(f"[Config] -> [ConfigError]: Unknown option '{key}' ignored.")
+            logger.warning("Unknown option %r ignored.", key)
         return cls(**{key: value for key, value in kwargs.items() if key in known})

@@ -42,32 +42,7 @@ class DeployClass:
         self._config = config if config is not None else DeployConfig.from_kwargs(**kwargs)
 
         self._testing = self._config.testing
-
-        ip = self._config.ip
-        username = self._config.username
-        password = self._config.password
-
-        if not self._testing:
-            if not ip:
-                ip = input("APIC IP Address: ").strip()
-            if not username:
-                username = input("APIC Username: ").strip()
-            if not password:
-                password = getpass.getpass("APIC Password: ")
-
-        self._ip = ip
-        self._url = f"https://{ip}" if ip else None
-
         self._cobra = CobraBuilder()
-        self._apic = ApicSession(
-            self._url,
-            username,
-            password,
-            self._config.secure,
-            self._config.timeout,
-            self._config.timer,
-            ip,
-        )
         self._templates = TemplateSource(self._config.working_folder)
         self._data = DataLoader(
             self._config.working_folder,
@@ -88,7 +63,7 @@ class DeployClass:
     def deploy(self) -> None:
         """Execute the deployment workflow for all configured templates."""
         if not self._templates.templates:
-            logger.warning("[Deploy] -> [ConfigError]: No templates configured!")
+            logger.warning("No templates configured.")
             return
 
         run_results: list[dict[str, Any]] = []
@@ -118,34 +93,59 @@ class DeployClass:
         try:
             renderer = JinjaRenderer()
             output = renderer.render(content, **self._data.variables)
-            logs.append(f"[Jinja]: Template {name} was rendered successfully.")
-            logger.info(logs[-1])
+            logs.append(f"Template {name} rendered successfully (Jinja).")
+            logger.info("Template %s rendered successfully (Jinja).", name)
 
             cobra_result = self._cobra.render(output)
             logs.extend(cobra_result.log)
             if not cobra_result.success:
                 raise DeployError(f"Template {name} failed to render Cobra objects.")
 
-            logs.append(f"[Deploy]: Template {name} was rendered successfully.")
-            logger.info(logs[-1])
+            logs.append(f"Template {name} rendered successfully (Cobra).")
+            logger.info("Template %s rendered successfully (Cobra).", name)
             success = True
         except Exception as exc:
-            logs.append(f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}.")
-            logger.exception(
-                f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}: {exc}"
-            )
+            logs.append(f"Failed to render template {name}: {type(exc).__name__}.")
+            logger.exception("Failed to render template %s.", name)
 
         return DeployResult(success=success, log=logs, path=str(path), name=name)
 
+    def _build_apic(self) -> tuple[ApicSession, str | None]:
+        """Build the APIC session, prompting for missing credentials interactively."""
+        ip = self._config.ip
+        username = self._config.username
+        password = self._config.password
+
+        if not self._testing:
+            if not ip:
+                ip = input("APIC IP Address: ").strip()
+            if not username:
+                username = input("APIC Username: ").strip()
+            if not password:
+                password = getpass.getpass("APIC Password: ")
+
+        url = f"https://{ip}" if ip else None
+        apic = ApicSession(
+            url,
+            username,
+            password,
+            self._config.secure,
+            self._config.timeout,
+            self._config.timer,
+            ip,
+        )
+        return apic, ip
+
     def _commit(self) -> None:
+        apic, ip = self._build_apic()
         try:
-            self._apic.commit(self._cobra.config)
-            msg = f"[Deploy]: Template was successfully deployed to APIC: {self._ip}."
-            logger.info(msg)
+            apic.commit(self._cobra.config)
+            msg = f"Configuration deployed successfully to APIC {ip}."
+            logger.info("%s", msg)
             self._results.append(Result(success=True, log=[msg]).to_dict())
         except Exception as exc:
-            msg = f"[Deploy] -> [{type(exc).__name__}]: Unable to deploy to APIC: {self._ip}, {exc}"
-            logger.exception(msg)
+            msg = f"Unable to deploy to APIC {ip}: {type(exc).__name__}."
+            logger.exception("%s", msg)
             self._results.append(Result(success=False, log=[msg]).to_dict())
 
     # ------------------------------------------------------------------ Output
@@ -185,7 +185,7 @@ class DeployClass:
         self._templates.add(value)
 
     @property
-    def config(self) -> Any:
+    def config(self) -> str | dict[str, Any] | None:
         return self._cobra.xml if self._config.render_to_xml else self._cobra.json
 
     @property

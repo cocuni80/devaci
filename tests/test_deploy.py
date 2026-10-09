@@ -117,6 +117,28 @@ def test_deploy_skips_commit_when_a_template_fails(monkeypatch):
     assert aci.results[1]["success"] is True
 
 
+def test_deploy_does_not_prompt_at_construction(monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("credentials must not be requested at construction")
+
+    monkeypatch.setattr("builtins.input", fail)
+    monkeypatch.setattr("devaci.deploy.getpass.getpass", fail)
+
+    DeployClass(testing=False, logging=False)
+
+
+def test_build_apic_prompts_for_missing_credentials(monkeypatch):
+    answers = iter(["10.0.0.1", "admin"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    monkeypatch.setattr("devaci.deploy.getpass.getpass", lambda _: "secret")
+
+    aci = DeployClass(testing=False, logging=False)
+    apic, ip = aci._build_apic()
+
+    assert ip == "10.0.0.1"
+    assert apic is not None
+
+
 def test_deploy_variable_named_name(deploy):
     aci = deploy()
     aci.variables = {"name": "test", "descr": "Test tenant"}

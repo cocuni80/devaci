@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 import pytest
 
@@ -29,9 +31,7 @@ def test_load_csv(tmp_path):
     path = tmp_path / "tenants.csv"
     pd.DataFrame({"tag": ["a", "b"], "name": ["x", "y"]}).to_csv(path, index=False)
 
-    assert load_csv(path, filters=["a"], by="tag") == {
-        "tenants": [{"tag": "a", "name": "x"}]
-    }
+    assert load_csv(path, filters=["a"], by="tag") == {"tenants": [{"tag": "a", "name": "x"}]}
 
 
 def test_load_xlsx_with_filters_sheet(tmp_path):
@@ -91,3 +91,23 @@ def test_data_loader_rejects_invalid_type(tmp_path):
 
     with pytest.raises(TypeError, match="Expected a filename"):
         loader.add_csv(123)
+
+
+def test_data_loader_logs_csv_errors(tmp_path, caplog):
+    loader = DataLoader(tmp_path)
+
+    with caplog.at_level(logging.ERROR, logger="devaci"):
+        loader.add_csv("missing.csv")
+
+    assert loader.variables == {}
+    assert any("Error loading CSV" in record.getMessage() for record in caplog.records)
+
+
+def test_data_loader_logs_xlsx_errors(tmp_path, caplog):
+    loader = DataLoader(tmp_path)
+
+    with caplog.at_level(logging.ERROR, logger="devaci"):
+        loader.add_xlsx("missing.xlsx")
+
+    assert loader.variables == {}
+    assert any("Error loading XLSX" in record.getMessage() for record in caplog.records)

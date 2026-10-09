@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from math import isnan
 from typing import TYPE_CHECKING, Any, Protocol, cast
+
+from devaci._values import is_invalid
 
 if TYPE_CHECKING:
     from devaci.cobra import CobraBuilder
@@ -17,17 +18,6 @@ class Handler(Protocol):
     def __call__(self, builder: CobraBuilder, value: Any) -> None: ...
 
 
-def _is_invalid(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, str):
-        value = value.strip()
-        return not value or value.lower() == "nan"
-    if isinstance(value, float):
-        return isnan(value)
-    return False
-
-
 def not_nan_str(value: Mapping[str, Any], keys: Iterable[str]) -> bool:
     """Return True when none of the given keys hold an invalid value.
 
@@ -35,7 +25,7 @@ def not_nan_str(value: Mapping[str, Any], keys: Iterable[str]) -> bool:
     string, the string ``nan`` (case-insensitive), or a float NaN. Missing
     keys are ignored.
     """
-    return not any(_is_invalid(value[k]) for k in keys if k in value)
+    return not any(is_invalid(value[k]) for k in keys if k in value)
 
 
 def _has_objects(config: Any) -> bool:
@@ -49,8 +39,8 @@ def config_xml(config: Any) -> str | None:
     return cast("str | None", config.xmldata)
 
 
-def config_json(config: Any) -> Any:
+def config_json(config: Any) -> dict[str, Any] | None:
     """Return the JSON-decoded payload of a ``ConfigRequest``, or None when empty."""
     if not _has_objects(config):
         return None
-    return json.loads(config.data)
+    return cast("dict[str, Any]", json.loads(config.data))

@@ -45,3 +45,15 @@ def test_commit_logs_out_even_when_commit_fails(monkeypatch):
         session.commit(object())
 
     assert fake.calls == ["login", "commit", "logout"]
+
+
+def test_countdown_prints_seconds(monkeypatch, capsys):
+    monkeypatch.setattr("devaci.transport.apic.time.sleep", lambda _: None)
+    session = ApicSession("https://apic", "u", "p", False, 10, 1, "apic")
+
+    session._countdown()
+
+    output = capsys.readouterr().out
+    assert "Deploying templates to APIC [apic]" in output
+    assert "1 seconds" in output
+    assert "0 seconds" in output

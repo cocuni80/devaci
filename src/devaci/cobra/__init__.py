@@ -52,7 +52,7 @@ class CobraBuilder:
         return config_xml(self.config)
 
     @property
-    def json(self) -> Any:
+    def json(self) -> dict[str, Any] | None:
         """Return the rendered JSON payload as a dict, or None when the config is empty."""
         return config_json(self.config)
 
@@ -72,26 +72,26 @@ class CobraBuilder:
             handler = BUILDERS.get(key)
             if handler is None:
                 success = False
-                msg = f"[Cobra] -> [ConfigError]: Class {key} does not exist."
-                logger.warning(msg)
+                msg = f"Class {key} does not exist."
+                logger.warning("%s", msg)
                 logs.append(msg)
                 continue
 
             try:
                 handler(self, value)
-                msg = f"[Cobra]: Class {key} was rendered successfully."
-                logger.info(msg)
+                msg = f"Class {key} rendered successfully."
+                logger.info("%s", msg)
                 logs.append(msg)
             except Exception as exc:
                 success = False
-                msg = f"[Cobra] -> [{type(exc).__name__}]: Class {key} failed: {exc}"
-                logger.exception(msg)
+                msg = f"Class {key} failed: {exc}"
+                logger.exception("%s", msg)
                 logs.append(msg)
 
         if not self.config.configMos:
             success = False
-            msg = "[Cobra] -> [ConfigError]: No object was found in configuration."
-            logger.warning(msg)
+            msg = "No object was found in configuration."
+            logger.warning("%s", msg)
             logs.append(msg)
 
         self.result = CobraResult(success=success, log=logs, config=self.config)

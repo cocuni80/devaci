@@ -58,3 +58,15 @@ def test_cobra_builder_accumulates_across_renders():
 def test_builders_mapping():
     assert "fvTenant" in BUILDERS
     assert all(callable(handler) for handler in BUILDERS.values())
+
+
+def test_cobra_builder_handler_error(monkeypatch):
+    def boom(builder, value):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(BUILDERS, "fvTenant", boom)
+
+    result = CobraBuilder().render({"fvTenant": [{"name": "acme"}]})
+
+    assert result.success is False
+    assert any("failed" in msg for msg in result.log)

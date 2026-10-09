@@ -1,8 +1,8 @@
 """Cobra object builders, grouped by ACI domain.
 
 Each handler is registered under the top-level YAML/template key it handles.
-Migrated from ``devaci._legacy.cobra``. Local variables keep the PascalCase
-style of the Cobra SDK to mirror the managed-object class names.
+Local variables keep the PascalCase style of the Cobra SDK to mirror the
+managed-object class names.
 """
 
 from __future__ import annotations
@@ -1761,6 +1761,7 @@ def infrazone_zone_p(builder: CobraBuilder, value: Any) -> None:
         if "Zone" in infrazoneZone:
             Zone = cobra.model.infrazone.Zone(ZoneP, **infrazoneZone["Zone"])
             builder.config.addMo(Zone)
+
 
 # --------------------------------------------------------------------------- Registry
 

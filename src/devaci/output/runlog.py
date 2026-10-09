@@ -40,5 +40,5 @@ class RunLog:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with open(log_file, "w", encoding="utf-8") as handle:
                 json.dump(history, handle, indent=4, ensure_ascii=False)
-        except Exception as exc:
-            logger.exception(f"[LoggingError]: {type(exc).__name__}: {exc}")
+        except Exception:
+            logger.exception("Failed to write run log %s.", log_file)

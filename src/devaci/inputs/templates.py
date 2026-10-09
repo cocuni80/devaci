@@ -47,5 +47,5 @@ class TemplateSource:
                         self._templates.append((handle.read(), path))
                 else:
                     raise ValueError("Invalid template format")
-            except Exception as exc:
-                logger.exception(f"[TemplateException]: Error loading template: {exc}")
+            except Exception:
+                logger.exception("Error loading template %r.", item)

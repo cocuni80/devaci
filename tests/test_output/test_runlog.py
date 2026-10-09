@@ -23,3 +23,9 @@ def test_runlog_recovers_from_corrupt_file(tmp_path):
     RunLog(tmp_path, "logging", enabled=True).save([{"a": 1}])
 
     assert json.loads(path.read_text(encoding="utf-8")) == [{"a": 1}]
+
+
+def test_runlog_swallows_write_errors(tmp_path):
+    (tmp_path / "blocked").write_text("a file, not a directory", encoding="utf-8")
+
+    RunLog(tmp_path, "blocked/logging", enabled=True).save([{"a": 1}])

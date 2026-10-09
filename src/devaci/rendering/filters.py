@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from devaci._values import is_nan
+
 
 def split_filter(value: Any, delimiter: str = ",") -> list[str]:
     """Split a value into a list of strings."""
@@ -32,8 +34,8 @@ def range_filter(value: Any) -> list[int]:
 
 
 def nan_filter(value: Any) -> bool:
-    """Return False when the value is the string ``nan``."""
-    return str(value) != "nan"
+    """Return False when the value is nan (float NaN or the text ``nan``)."""
+    return not is_nan(value)
 
 
 def str_to_bool(value: Any) -> bool:
