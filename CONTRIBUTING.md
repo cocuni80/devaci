@@ -45,6 +45,16 @@ Guidelines:
 
 ## Releasing
 
-Versioning and publishing are documented in `DO_NOT_PUBLISH.md` (private
-checklist). In short: bump the version in `pyproject.toml`, move the
-`CHANGELOG.md` entries out of `[Unreleased]`, tag, then `uv build && uv publish`.
+Releases are published from `main` and `next` via **GitHub Releases** using
+trusted publishing (`.github/workflows/publish.yml`) — no PyPI token needed.
+
+In short:
+
+1. Bump the version in `pyproject.toml` (run `uv lock`) and add a
+   `CHANGELOG.md` entry.
+2. Push to `next`, then create a **pre-release** GitHub Release with a new
+   tag (`vX.Y.Z`) targeting `next`.
+3. Publishing a release triggers the workflow, which builds and uploads to PyPI.
+
+Never reuse a version number (PyPI is immutable). The full checklist is in
+`DO_NOT_PUBLISH.md` (private).
