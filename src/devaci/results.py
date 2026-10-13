@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
+
+from devaci.cobra.base import config_json, config_xml
+
+__all__ = ["CobraResult", "DeployResult", "JinjaResult", "Result"]
 
 
 def _timestamp() -> str:
-    return datetime.now().strftime("%d/%m/%Y-%H:%M:%S")
+    return datetime.now().isoformat(timespec="seconds")
 
 
 @dataclass(frozen=True)
@@ -17,7 +20,7 @@ class Result:
     """Base result shared by all devaci phases."""
 
     success: bool = False
-    log: list[str] = field(default_factory=list)
+    log: list[dict[str, Any]] = field(default_factory=list)
     date: str = field(default_factory=_timestamp)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,15 +47,11 @@ class CobraResult(Result):
 
     @property
     def xml(self) -> str | None:
-        if self.config is None or not self.config.configMos:
-            return None
-        return cast(str | None, self.config.xmldata)
+        return config_xml(self.config)
 
     @property
-    def json(self) -> Any:
-        if self.config is None or not self.config.configMos:
-            return None
-        return json.loads(self.config.data)
+    def json(self) -> dict[str, Any] | None:
+        return config_json(self.config)
 
     def to_dict(self) -> dict[str, Any]:
         data = super().to_dict()

@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main, next]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check src tests
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Build
+        run: uv build
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      # The Cisco Cobra SDK is not on PyPI and its wheels are not tracked
+      # (vendor/ is gitignored), so the test suite only runs when the wheels
+      # are present in the checkout. Without them, `import devaci` fails and
+      # pytest cannot even collect; the step is skipped with a warning rather
+      # than failing every run.
+      - name: Install Cobra SDK when vendored
+        run: |
+          if compgen -G "vendor/*.whl" > /dev/null; then
+            uv pip install vendor/*.whl
+          else
+            echo "::warning::vendor/*.whl missing; tests will be skipped"
+          fi
+
+      - name: Tests
+        if: hashFiles('vendor/*.whl') != ''
+        run: uv run pytest --cov=devaci

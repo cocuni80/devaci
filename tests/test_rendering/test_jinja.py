@@ -1,7 +1,7 @@
 import pytest
 
 from devaci.exceptions import JinjaError
-from devaci.jinja import JinjaRenderer
+from devaci.rendering.jinja import JinjaRenderer
 
 
 def test_render_mapping():
@@ -20,6 +20,12 @@ def test_render_variable_named_name():
     renderer = JinjaRenderer()
     out = renderer.render("fvTenant:\n  - name: {{ name }}\n", name="acme")
     assert out == {"fvTenant": [{"name": "acme"}]}
+
+
+def test_render_undefined_is_empty():
+    renderer = JinjaRenderer()
+    out = renderer.render("fvTenant:\n  - name: {{ missing }}\n")
+    assert out == {"fvTenant": [{"name": None}]}
 
 
 def test_render_syntax_error():

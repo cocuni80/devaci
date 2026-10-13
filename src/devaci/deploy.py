@@ -1,320 +1,545 @@
-"""Deployment orchestrator for devaci."""
+"""Deployment orchestration and run reporting for devaci."""
 
 from __future__ import annotations
 
-import contextlib
 import getpass
-import json
+import itertools
 import sys
-import time
-import xml.dom.minidom
+from collections.abc import Iterator
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
-import cobra.mit.access
-import cobra.mit.session
-import urllib3
-
 from devaci.cobra import CobraBuilder
-from devaci.console import logger, print_syntax
-from devaci.data import load_csv, load_xlsx
-from devaci.exceptions import DeployError
-from devaci.jinja import JinjaRenderer
+from devaci.cobra.builders import BUILDERS
+from devaci.config import DeployConfig
+from devaci.console import get_console, get_error_console, get_logger
+from devaci.inputs.datasets import DataLoader
+from devaci.inputs.templates import TemplateSource
+from devaci.output.runlog import RunLog
+from devaci.output.writer import OutputWriter
+from devaci.rendering.jinja import JinjaRenderer
+from devaci.rendering.sections import split_template
 from devaci.results import DeployResult
+from devaci.transport.apic import ApicSession
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logger = get_logger(__name__)
+
+
+def _version() -> str:
+    try:
+        return version("devaci")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+def _duration(seconds: float) -> str:
+    return f"{round(seconds * 1000)}ms" if seconds < 1 else f"{seconds:.1f}s"
+
+
+def _read_key() -> str:
+    """Read a single keypress without Enter, returning ``""`` when unavailable."""
+    try:
+        import termios
+        import tty
+    except ImportError:  # pragma: no cover - Windows
+        try:
+            import msvcrt
+        except ImportError:
+            return ""
+        getwch = getattr(msvcrt, "getwch", None)
+        return str(getwch()) if getwch is not None else ""
+
+    try:
+        old = termios.tcgetattr(sys.stdin.fileno())
+    except (termios.error, ValueError, OSError):
+        return ""
+    try:
+        tty.setraw(sys.stdin.fileno())
+        return sys.stdin.read(1)
+    except OSError:
+        return ""
+    finally:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
 
 
 class DeployClass:
-    """Deployment manager for Cisco ACI using the Cobra SDK.
+    """Deployment orchestrator for Cisco ACI."""
 
-    Handles the full workflow: template rendering, Cobra model rendering,
-    optional input filtering, output visualization/persistence, and optional
-    commit to APIC.
+    def __init__(self, config: DeployConfig | None = None, **kwargs: Any) -> None:
+        """Configure the deployment.
 
-    Configuration options:
-    - ip (str): APIC IPv4 address
-    - username (str): APIC username
-    - password (str): APIC password
-    - testing (bool): enable dry-run mode (default: False)
-    - filter_by (str): variable name used for filtering (default: "tag")
-    - timer (int): countdown in seconds before commit (default: 5)
-    - show_output (bool): pretty-print rendered output to the terminal
-    - file_output (str): output filename (JSON or XML)
-    - secure (bool): verify SSL certificates (default: False)
-    - render_to_xml (bool): render output as XML instead of JSON (default: True)
-    - working_folder (Path): base directory for templates and data files
-    - logging_output (str): logging filename (default: "outputs/logs/logging.json")
-    - logging (bool): enable execution logging to file
-    """
+        Renders Jinja2 templates against XLSX/CSV input and compiles the result into a
+        Cobra ``ConfigRequest``, optionally committing it to an APIC.
 
-    def __init__(self, **kwargs: Any) -> None:
-        self._testing = kwargs.get("testing", False)
+        Configure it with a :class:`~devaci.config.DeployConfig` or the equivalent
+        keyword arguments (all optional):
 
-        self._ip = kwargs.get("ip")
-        self._username = kwargs.get("username")
-        self._password = kwargs.get("password")
+        - ``testing`` (bool, default ``False``): dry run; skips the commit and
+          credential prompt.
+        - ``ip`` / ``username`` / ``password`` (str, default ``None``): APIC
+          access; prompted at commit when missing.
+        - ``timeout`` (int, default ``180``) / ``connect_timeout`` (int, default
+          ``5``): APIC read/connect timeouts in seconds.
+        - ``secure`` (bool, default ``False``): verify the APIC TLS certificate.
+        - ``timer`` (int, default ``5``): countdown seconds before committing.
+        - ``show_output`` (bool, default ``False``): print the rendered
+          configuration.
+        - ``file_output`` (str, default ``None``): save the rendered
+          configuration.
+        - ``logging_output`` (str, default ``"outputs/logs/logging.json"``):
+          run-history path (``.jsonl`` suffix added).
+        - ``logging`` (bool, default ``True``): persist one run record per
+          ``deploy()``.
+        - ``show_report`` (bool, default ``True``): print a run report at the
+          end of ``deploy()``.
+        - ``verbose`` (bool, default ``False``): add per-class detail to the
+          report.
+        - ``render_to_xml`` (bool, default ``True``): render XML or JSON.
+        - ``filters`` (list[str], default ``None``) / ``filter_by`` (str,
+          default ``"tag"``): rows to keep.
+        - ``filters_source_sheet`` (str, default ``None``) /
+          ``filters_condition_field`` (str, default ``"enabled"``) /
+          ``filters_output_field`` (str, default ``"name"``): derive the filters
+          from a dedicated sheet.
+        - ``working_folder`` (Path, default: current directory): base folder for
+          data, outputs and history.
 
-        if not self._testing:
-            if not self._ip:
-                self._ip = input("APIC IP Address: ").strip()
-            if not self._username:
-                self._username = input("APIC Username: ").strip()
-            if not self._password:
-                self._password = getpass.getpass("APIC Password: ")
-
-        self._url = f"https://{self._ip}" if self._ip else None
-        self._timeout = kwargs.get("timeout", 180)
-        self._secure = kwargs.get("secure", False)
-        self._timer = kwargs.get("timer", 5)
-        self._show_output = kwargs.get("show_output", False)
-        self._file_output = kwargs.get("file_output")
-        self._logging_output = kwargs.get("logging_output", "outputs/logs/logging.json")
-        self._logging = kwargs.get("logging", True)
-        self._render_to_xml = kwargs.get("render_to_xml", True)
-        self._filters_source_sheet = kwargs.get("filters_source_sheet")
-        self._filters_condition_field = kwargs.get("filters_condition_field", "enabled")
-        self._filters_output_field = kwargs.get("filters_output_field", "name")
-        self._filters = kwargs.get("filters")
-        self._filter_by = kwargs.get("filter_by", "tag")
-        self._working_folder: Path = kwargs.get("working_folder", Path.cwd())
-
+        Then drive it through the ``template``, ``xlsx``, ``csv`` and ``variables``
+        properties and call :meth:`deploy`.
+        """
+        if config is not None and kwargs:
+            raise TypeError("Pass either 'config' or keyword arguments, not both.")
+        self._config = config if config is not None else DeployConfig.from_kwargs(**kwargs)
+        self._testing = self._config.testing
         self._cobra = CobraBuilder()
-        self._session = cobra.mit.session.LoginSession(
-            self._url, self._username, self._password, self._secure, self._timeout
+        self._templates = TemplateSource(self._config.working_folder)
+        self._data = DataLoader(
+            self._config.working_folder,
+            self._config.filters,
+            self._config.filter_by,
+            self._config.filters_source_sheet,
+            self._config.filters_condition_field,
+            self._config.filters_output_field,
         )
-        self._modir = cobra.mit.access.MoDirectory(self._session)
-
-        self._template: list[tuple[str, Path]] = []
-        self._variables: dict[str, Any] = {}
+        self._writer = OutputWriter(self._config.working_folder, self._config.render_to_xml)
+        self._runlog = RunLog(
+            self._config.working_folder, self._config.logging_output, self._config.logging
+        )
         self._results: list[dict[str, Any]] = []
-
-    # ------------------------------------------------------------------ Control
+        self._run: dict[str, Any] | None = None
 
     def deploy(self) -> None:
-        """Execute the deployment workflow for all configured templates."""
-        if not self._template:
-            logger.warning("[Deploy] -> [ConfigError]: No templates configured!")
+        """Run all configured templates and create one run record."""
+        if not self._templates.templates:
+            logger.warning("No templates configured.")
+            self._results = []
+            self._run = self._empty_run()
+            if self._config.show_report:
+                self.print_report()
             return
+        started = perf_counter()
+        self._results = []
+        templates: list[dict[str, Any]] = []
+        for content, path in self._templates.templates:
+            record = self._deploy_one(content, path)
+            templates.append(record)
+            self._results.append(record)
 
-        for content, path in self._template:
-            self._results.append(self._deploy_one(content, path).to_dict())
-
-        if self._show_output:
+        if self._config.show_output:
             self.print_output()
+        if self._config.file_output:
+            self.save_output(self._config.file_output)
 
-        if self._file_output:
-            self.save_output(self._file_output)
-
-        if not self._testing and self._cobra.result is not None and self._cobra.result.success:
-            self._commit()
-
-        if self._logging:
+        all_success = bool(templates) and all(template["success"] for template in templates)
+        commit = self._commit() if not self._testing and all_success else None
+        success = all_success and (commit is None or commit["success"])
+        self._run = {
+            "date": datetime.now().isoformat(timespec="seconds"),
+            "version": _version(),
+            "mode": "dry_run" if self._testing else "deploy",
+            "filters": list(self._config.filters or []),
+            "success": success,
+            "duration_s": round(perf_counter() - started, 3),
+            "templates": templates,
+            "commit": commit,
+        }
+        if self._config.logging:
             self.save_logging()
+        if self._config.show_report:
+            self.print_report()
 
-    def _deploy_one(self, content: str, path: Path) -> DeployResult:
-        name = path.name if isinstance(path, Path) else str(path)
-        logs: list[str] = []
-        success = False
+    def _empty_run(self) -> dict[str, Any]:
+        return {
+            "date": datetime.now().isoformat(timespec="seconds"),
+            "version": _version(),
+            "mode": "dry_run" if self._testing else "deploy",
+            "filters": list(self._config.filters or []),
+            "success": True,
+            "duration_s": 0.0,
+            "templates": [],
+            "commit": None,
+        }
 
+    def _deploy_one(self, content: str, path: Path) -> dict[str, Any]:
+        """Render one template and return its structured run template record."""
+        name = path.name
+        logs: list[dict[str, Any]] = []
+        success = True
+        before = len(self._cobra.config.configMos)
+        started = perf_counter()
         try:
             renderer = JinjaRenderer()
-            output = renderer.render(content, **self._variables)
-            logs.append(f"[Jinja]: Template {name} was rendered successfully.")
-            logger.info(logs[-1])
-
-            cobra_result = self._cobra.render(output)
-            logs.extend(cobra_result.log)
-            if not cobra_result.success:
-                raise DeployError(f"Template {name} failed to render Cobra objects.")
-
-            logs.append(f"[Deploy]: Template {name} was rendered successfully.")
-            logger.info(logs[-1])
-            success = True
+            names = set(self._data.sheets) | set(BUILDERS)
+            preamble, sections = split_template(content, names)
+            data_keys = [key for key in sections if key in self._data.sheets]
+            for sheet in sorted(set(self._data.sheets) - set(sections)):
+                if self._data.sheets[sheet]:
+                    logs.append(
+                        {"level": "debug", "message": f"sheet '{sheet}' has no matching section"}
+                    )
+            if data_keys:
+                success = self._render_sections(renderer, preamble, sections, name, logs)
+            else:
+                result = self._cobra.render(renderer.render(content, **self._data.variables))
+                logs.extend(result.log)
+                success = result.success
+            if data_keys and len(self._cobra.config.configMos) == before:
+                result = self._cobra.render({})
+                logs.extend(result.log)
+                success = success and result.success
         except Exception as exc:
-            logs.append(f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}.")
-            logger.error(
-                f"[Deploy] -> [{type(exc).__name__}]: Failed to render template {name}: {exc}"
+            success = False
+            message = f"failed to render template {name}: {exc}"
+            logs.append(
+                {
+                    "level": "error",
+                    "where": name,
+                    "message": message,
+                    "type": type(exc).__name__,
+                    "cause": type(exc.__cause__).__name__ if exc.__cause__ else None,
+                }
             )
+            logger.exception("%s", message)
+        record = DeployResult(success=success, log=logs, path=str(path), name=name).to_dict()
+        record.pop("date")
+        record["path"] = self._relative_path(path)
+        record["objects"] = self._objects(logs)
+        record["duration_s"] = round(perf_counter() - started, 3)
+        return record
 
-        return DeployResult(success=success, log=logs, path=str(path), name=name)
+    def _render_sections(
+        self,
+        renderer: JinjaRenderer,
+        preamble: str,
+        sections: dict[str, str],
+        name: str,
+        logs: list[dict[str, Any]],
+    ) -> bool:
+        """Render every section and compile each sheet's objects separately."""
+        success = True
+        for key, fragment in sections.items():
+            objects = self._render_objects(renderer, preamble, fragment, key)
+            if not objects:
+                continue
+            result = self._cobra.render({key: objects})
+            logs.extend(result.log)
+            success = success and result.success
+            logger.info("Template %s section %s rendered (%d objects).", name, key, len(objects))
+        return success
 
-    def _commit(self) -> None:
+    def _render_objects(
+        self, renderer: JinjaRenderer, preamble: str, fragment: str, key: str
+    ) -> list[dict[str, Any]]:
+        """Render one section once per sheet row (or a single time for static ones)."""
+        template = renderer.compile(preamble + fragment)
+        rows = self._data.sheets.get(key)
+        if rows is None:
+            return list(renderer.render_template(template, **self._data.variables).get(key) or [])
+        objects: list[dict[str, Any]] = []
+        for row in rows:
+            output = renderer.render_template(template, **{**self._data.variables, key: row})
+            objects.extend(output.get(key) or [])
+        return objects
+
+    def _build_apic(self) -> tuple[ApicSession, str | None]:
+        """Build the APIC session, prompting for missing credentials interactively."""
+        ip, username, password = self._config.ip, self._config.username, self._config.password
+        if not self._testing:
+            if not ip:
+                ip = input("APIC IP Address: ").strip()
+            if not username:
+                username = input("APIC Username: ").strip()
+            if not password:
+                password = getpass.getpass("APIC Password: ")
+        apic = ApicSession(
+            f"https://{ip}" if ip else None,
+            username,
+            password,
+            self._config.secure,
+            (self._config.connect_timeout, self._config.timeout),
+            self._config.timer,
+            ip,
+        )
+        return apic, ip
+
+    def _commit(self) -> dict[str, Any]:
+        started = perf_counter()
+        apic, ip = self._build_apic()
+        objects = len(self._cobra.config.configMos)
+        endpoint = f"APIC {ip}" if ip else "APIC"
         try:
-            self._countdown()
-            self._modir.login()
-            self._modir.commit(self._cobra.config)
-            msg = f"[Deploy]: Template was successfully deployed to APIC: {self._ip}."
-            logger.info(msg)
-            self._results.append(
-                {"date": datetime.now().strftime("%d/%m/%Y-%H:%M:%S"), "success": True, "log": msg}
-            )
+            apic.commit(self._cobra.config)
+            logger.info("Configuration deployed successfully to %s.", endpoint)
+            return {
+                "success": True,
+                "endpoint": endpoint,
+                "objects": objects,
+                "duration_s": round(perf_counter() - started, 3),
+                "log": [{"level": "info", "message": "committed", "objects": objects}],
+            }
         except Exception as exc:
-            msg = f"[Deploy] -> [{type(exc).__name__}]: Unable to deploy to APIC: {self._ip}, {exc}"
-            logger.error(msg)
-            self._results.append(
-                {"date": datetime.now().strftime("%d/%m/%Y-%H:%M:%S"), "success": False, "log": msg}
-            )
-        finally:
-            with contextlib.suppress(Exception):
-                self._modir.logout()
-
-    def _countdown(self) -> None:
-        message = f"Deploying templates to APIC [{self._ip}] in"
-        for remaining in range(self._timer, -1, -1):
-            sys.stdout.write(f"\r{message} {remaining} seconds")
-            sys.stdout.flush()
-            time.sleep(1)
-        sys.stdout.write("\n")
-
-    # ------------------------------------------------------------------ Output
+            message = f"failed to deploy to {endpoint}: {exc}"
+            logger.exception("%s", message)
+            return {
+                "success": False,
+                "endpoint": endpoint,
+                "objects": objects,
+                "duration_s": round(perf_counter() - started, 3),
+                "log": [
+                    {
+                        "level": "error",
+                        "message": message,
+                        "type": type(exc).__name__,
+                        "cause": type(exc.__cause__).__name__ if exc.__cause__ else None,
+                    }
+                ],
+            }
 
     def save_output(self, name: str = "output") -> None:
-        """Save rendered configuration to disk (XML or JSON)."""
-        content = self.config
-        if content is None:
-            return
-
-        suffix = "xml" if self._render_to_xml else "json"
-        output_path = self._working_folder / f"{name}.{suffix}"
-        try:
-            if self._render_to_xml:
-                dom = xml.dom.minidom.parseString(content)
-                text = dom.toprettyxml(indent="\t")
-            else:
-                text = json.dumps(content, indent=4, ensure_ascii=False)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(text, encoding="utf-8")
-        except Exception as exc:
-            logger.error(f"[SaveOutputError]: Failed to save output file! {exc}")
+        """Save the rendered configuration to disk (XML or JSON)."""
+        self._writer.save(self.config, name)
 
     def print_output(self, theme: str = "fruity", line_numbers: bool = True) -> None:
         """Pretty-print the rendered configuration to the terminal."""
-        content = self.config
-        if content is None:
-            return
-
-        try:
-            if self._render_to_xml:
-                text = xml.dom.minidom.parseString(content).toprettyxml(indent="\t")
-                lexer = "xml"
-            else:
-                text = json.dumps(content, indent=4, ensure_ascii=False)
-                lexer = "json"
-            print_syntax(text, lexer, theme=theme, line_numbers=line_numbers)
-        except Exception as exc:
-            logger.error(f"[PrintOutputError]: Error printing output! {exc}")
+        self._writer.show(self.config, theme=theme, line_numbers=line_numbers)
 
     def save_logging(self) -> None:
-        """Append execution results to a JSON log file defensively."""
-        if not self._logging:
+        """Append the current run record to the JSON Lines history defensively."""
+        if self._run is not None:
+            self._runlog.save(self._run)
+
+    def print_report(self) -> None:
+        """Print the latest run, preferring the in-memory record over the file."""
+        record = self._run or self._runlog.last()
+        if record is not None:
+            self._format_run(record)
+
+    def print_reports(self, limit: int = 5, paginate: bool = True) -> None:
+        """Print the run history, newest first.
+
+        With ``paginate=True`` (default) shows the ``limit`` (default 5) most
+        recent runs and waits for SPACE to continue with older ones until the
+        history ends. With ``paginate=False`` prints every run without prompting.
+        """
+        if not paginate:
+            for record in self._iter_history():
+                self._format_run(record)
             return
 
-        log_file = Path(self._working_folder / self._logging_output).with_suffix(".json")
-        history: list[Any] = []
+        history = self._iter_history()
+        interactive = sys.stdin.isatty()
+        while True:
+            batch = list(itertools.islice(history, limit))
+            if not batch:
+                break
+            for record in batch:
+                self._format_run(record)
+            remaining = next(history, None)
+            if remaining is None:
+                break
+            history = itertools.chain([remaining], history)
+            if not interactive:
+                get_console().print(
+                    "... older runs not shown (use print_reports(paginate=False))",
+                    markup=False,
+                )
+                break
+            get_console().print("Press SPACE for older runs, any other key to stop...", end="")
+            key = _read_key()
+            get_console().print()
+            if key != " ":
+                break
+
+    def _iter_history(self) -> Iterator[dict[str, Any]]:
+        """Yield run records newest first from the file, or the in-memory run.
+
+        Reading the history is independent of the ``logging`` persistence flag:
+        the file is used whenever it exists, otherwise the in-memory run.
+        """
+        if self._runlog.path.exists():
+            return self._runlog.iter_runs(reverse=True)
+        if self._run is not None:
+            return iter([self._run])
+        return iter(())
+
+    def _format_run(self, record: dict[str, Any]) -> None:
+        """Render one run record to the console, sending failures to stderr."""
+        out, err = get_console(), get_error_console()
+        mode = "dry run" if record.get("mode") == "dry_run" else "deploy"
+        out.print(f"devaci {record.get('version', '?')} · {mode} · {record.get('date', '')}")
+        filters = record.get("filters") or []
+        if filters:
+            out.print(f"Filters: {', '.join(filters)}")
+
+        templates = record.get("templates", [])
+        for template in templates:
+            self._format_template(template, out, err)
+        self._print_commit(record, out, err)
+
+        target = out if record.get("success") else err
+        target.print()
+        if not templates:
+            target.print("Result: OK · nothing to do")
+            return
+        succeeded = sum(1 for template in templates if template.get("success"))
+        if record.get("mode") == "dry_run":
+            ending = "dry run"
+        elif record.get("success"):
+            ending = "committed"
+        else:
+            ending = "nothing committed"
+        target.print(
+            f"Result: {'OK' if record.get('success') else 'FAILED'} · {succeeded} of "
+            f"{len(templates)} templates succeeded · {ending}"
+        )
+
+    def _format_template(self, template: dict[str, Any], out: Any, err: Any) -> None:
+        success = template.get("success", False)
+        target = out if success else err
+        status = "[green]✔ SUCCESS[/green]" if success else "[red]✘ FAILED[/red]"
+        target.print()
+        target.print(template.get("name", "template"), markup=False)
+        target.print(f"  Status:     {status}")
+        target.print(f"  Objects:    {template.get('objects', 0)}")
+        target.print(f"  Duration:   {_duration(template.get('duration_s', 0.0))}")
+        log = template.get("log", [])
+        warnings = self._events(log, "warning")
+        if warnings:
+            target.print(
+                f"  Warnings:   {len(warnings)} · {warnings[0].get('message', '')}",
+                markup=False,
+            )
+        for error in self._events(log, "error"):
+            target.print(
+                f"  Error:      {error.get('type', 'Error')}: {error.get('message', '')}",
+                markup=False,
+            )
+        if self._config.verbose:
+            for event in log:
+                where = event.get("where")
+                objects = event.get("objects")
+                prefix = f"{where}: " if where else ""
+                suffix = f" ({objects} objects)" if objects is not None else ""
+                message = event.get("message", "")
+                target.print(
+                    f"  {event.get('level', 'info').title()}: {prefix}{message}{suffix}",
+                    markup=False,
+                )
+
+    def _print_commit(self, record: dict[str, Any], out: Any, err: Any) -> None:
+        commit = record.get("commit")
+        if commit is None:
+            return
+        success = commit.get("success", False)
+        target = out if success else err
+        status = "[green]✔ SUCCESS[/green]" if success else "[red]✘ FAILED[/red]"
+        target.print()
+        target.print("commit")
+        target.print(f"  Status:     {status}")
+        target.print(f"  Endpoint:   {commit.get('endpoint', '')}", markup=False)
+        target.print(f"  Objects:    {commit.get('objects', 0)}")
+        target.print(f"  Duration:   {_duration(commit.get('duration_s', 0.0))}")
+        for error in self._events(commit.get("log", []), "error"):
+            target.print(
+                f"  Error:      {error.get('type', 'Error')}: {error.get('message', '')}",
+                markup=False,
+            )
+
+    @staticmethod
+    def _events(log: list[dict[str, Any]], level: str) -> list[dict[str, Any]]:
+        """Return the log events with the given ``level``."""
+        return [event for event in log if event.get("level") == level]
+
+    @staticmethod
+    def _objects(log: list[dict[str, Any]]) -> int:
+        """Sum the objects reported by the info events of ``log``."""
+        return sum(int(event.get("objects", 0)) for event in log if event.get("level") == "info")
+
+    def _relative_path(self, path: Path) -> str:
         try:
-            if log_file.exists():
-                try:
-                    with open(log_file, encoding="utf-8") as handle:
-                        history = json.load(handle)
-                        if not isinstance(history, list):
-                            history = []
-                except json.JSONDecodeError:
-                    history = []
-
-            history.extend(self._results)
-            log_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(log_file, "w", encoding="utf-8") as handle:
-                json.dump(history, handle, indent=4, ensure_ascii=False)
-        except Exception as exc:
-            logger.error(f"[LoggingError]: {type(exc).__name__}: {exc}")
-
-    # ------------------------------------------------------------------ Properties
+            return str(path.relative_to(self._config.working_folder))
+        except ValueError:
+            return str(path)
 
     @property
     def results(self) -> list[dict[str, Any]]:
+        """Per-template records of the most recent ``deploy()``."""
         return self._results
 
     @property
+    def run(self) -> dict[str, Any] | None:
+        """Run record of the most recent ``deploy()`` (or ``None``)."""
+        return self._run
+
+    @property
+    def success(self) -> bool:
+        """Whether the most recent run rendered (and committed) successfully."""
+        return bool(self._run and self._run["success"])
+
+    @property
     def variables(self) -> dict[str, Any]:
-        return self._variables
+        """Scalar variables available to every render."""
+        return self._data.variables
 
     @variables.setter
     def variables(self, value: dict[str, Any]) -> None:
-        self._variables = value
+        """Set scalar variables available to every render."""
+        self._data.variables = value
 
     @property
     def template(self) -> list[tuple[str, Path]]:
-        return self._template
+        """Configured templates as ``(content, path)`` pairs."""
+        return self._templates.templates
 
     @template.setter
     def template(self, value: Any) -> None:
-        """Load template content into memory.
-
-        Accepted inputs:
-        - str: template filename (loaded from working_folder)
-        - list[str]: multiple template filenames
-        - tuple[str, str]: (template_content, template_name)
-        - list[tuple[str, str]]: multiple in-memory templates
-        """
-        if not value:
-            return
-
-        values = value if isinstance(value, list) else [value]
-        for item in values:
-            try:
-                if isinstance(item, tuple) and len(item) == 2:
-                    content, name = item
-                    if not isinstance(content, str) or not isinstance(name, str):
-                        raise ValueError("Template content and name must be strings")
-                    self._template.append((content, Path(name)))
-                elif isinstance(item, str):
-                    path = self._working_folder / item
-                    with open(path, encoding="utf-8") as handle:
-                        self._template.append((handle.read(), path))
-                else:
-                    raise ValueError("Invalid template format")
-            except Exception as exc:
-                logger.error(f"[TemplateException]: Error loading template: {exc}")
+        """Append template(s) from a filename, list, or ``(content, name)``."""
+        self._templates.add(value)
 
     @property
-    def config(self) -> Any:
-        return self._cobra.xml if self._render_to_xml else self._cobra.json
+    def config(self) -> str | dict[str, Any] | None:
+        """Rendered configuration (XML string or JSON dict) of the run."""
+        return self._cobra.xml if self._config.render_to_xml else self._cobra.json
 
     @property
-    def csv(self) -> dict[str, Any]:
-        return self._variables
+    def csv(self) -> dict[str, list[dict[str, Any]]]:
+        """Loaded CSV sheet rows, keyed by file stem."""
+        return self._data.sheets
 
     @csv.setter
     def csv(self, value: Any) -> None:
-        """Load CSV file(s) into the variables dict."""
-        files = [value] if isinstance(value, str) else value
-        for file in files:
-            try:
-                self._variables |= load_csv(
-                    self._working_folder / file, self._filters, self._filter_by
-                )
-            except Exception as exc:
-                logger.error(f"[CSVException]: Error loading CSV file: {exc}")
+        """Load CSV file(s) into the sheets mapping."""
+        self._data.add_csv(value)
 
     @property
-    def xlsx(self) -> dict[str, Any]:
-        return self._variables
+    def xlsx(self) -> dict[str, list[dict[str, Any]]]:
+        """Loaded XLSX sheet rows, keyed by sheet name."""
+        return self._data.sheets
 
     @xlsx.setter
     def xlsx(self, value: Any) -> None:
-        """Load XLSX file(s) into the variables dict."""
-        files = [value] if isinstance(value, str) else value
-        for file in files:
-            try:
-                self._variables |= load_xlsx(
-                    self._working_folder / file,
-                    self._filters,
-                    self._filter_by,
-                    self._filters_source_sheet,
-                    self._filters_condition_field,
-                    self._filters_output_field,
-                )
-            except Exception as exc:
-                logger.error(f"[XLSXException]: Error loading XLSX file '{file}': {exc}")
+        """Load XLSX file(s) into the sheets mapping."""
+        self._data.add_xlsx(value)
