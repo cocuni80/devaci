@@ -14,20 +14,59 @@ def test_deploy_in_memory_template(deploy, tenant_template):
 
 def test_deploy_from_xlsx(deploy, tmp_path):
     pd.DataFrame([{"name": "acme"}, {"name": "beta"}]).to_excel(
-        tmp_path / "data.xlsx", sheet_name="tenants", index=False
+        tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
     )
 
     aci = deploy()
     aci.xlsx = "data.xlsx"
-    aci.template = (
-        "fvTenant:\n{% for row in tenants %}\n  - name: {{ row.name }}\n{% endfor %}\n",
-        "tenant.j2",
-    )
+    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
     aci.deploy()
 
     config = aci.config
     assert "acme" in config
     assert "beta" in config
+
+    assert aci.results[0]["success"] is True
+
+
+def test_deploy_per_sheet_onto_same_config(deploy, tmp_path):
+    with pd.ExcelWriter(tmp_path / "data.xlsx") as writer:
+        pd.DataFrame([{"name": "acme"}]).to_excel(writer, sheet_name="fvTenant", index=False)
+        pd.DataFrame([{"name": "web", "tenant": "acme"}]).to_excel(
+            writer, sheet_name="fvAp", index=False
+        )
+
+    aci = deploy()
+    aci.xlsx = "data.xlsx"
+    aci.template = (
+        "fvTenant:\n  - name: {{ fvTenant.name }}\n"
+        "\n"
+        "fvAp:\n  - name: {{ fvAp.name }}\n    tenant: {{ fvAp.tenant }}\n",
+        "fabric.j2",
+    )
+    aci.deploy()
+
+    assert "acme" in aci.config
+    assert "web" in aci.config
+    assert aci.config.count("<fvTenant ") == 1
+    assert aci.config.count("<fvAp ") == 1
+
+
+def test_deploy_self_contained_template(deploy):
+    aci = deploy()
+    aci.template = (
+        '{% set names = ["one", "two"] %}\n'
+        "fvTenant:\n"
+        "  {% for name in names %}\n"
+        "  - name: {{ name }}\n"
+        "  {% endfor %}\n",
+        "static.j2",
+    )
+    aci.deploy()
+
+    assert "one" in aci.config
+    assert "two" in aci.config
+    assert aci.results[0]["success"] is True
 
 
 def test_deploy_multiple_templates(deploy):
@@ -55,15 +94,12 @@ def test_deploy_template_from_file(deploy, tmp_path):
 
 def test_deploy_from_csv(deploy, tmp_path):
     pd.DataFrame({"tag": ["a", "b"], "name": ["acme", "beta"]}).to_csv(
-        tmp_path / "tenants.csv", index=False
+        tmp_path / "fvTenant.csv", index=False
     )
 
     aci = deploy()
-    aci.csv = "tenants.csv"
-    aci.template = (
-        "fvTenant:\n{% for row in tenants %}\n  - name: {{ row.name }}\n{% endfor %}\n",
-        "tenant.j2",
-    )
+    aci.csv = "fvTenant.csv"
+    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
     aci.deploy()
 
     config = aci.config

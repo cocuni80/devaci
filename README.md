@@ -50,7 +50,7 @@ aci = DeployClass(
     logging=True,                 # append results to logging_output (JSON)
 )
 
-aci.xlsx = "data/aci.xlsx"        # load every sheet into template variables
+aci.xlsx = "data/aci.xlsx"        # load every sheet as per-row data
 aci.template = "data/templates/tenant.j2"
 aci.deploy()
 
@@ -74,21 +74,27 @@ every template in the run succeeded**.
 
 ## Templates
 
-A template is a Jinja2 file that renders to YAML. Each **top-level key maps to
-an ACI object class** handled by `CobraBuilder` (`fvTenant`, `fvAp`, `mcpInstPol`,
-`fabricNodeControl`, ...). Values may be a list of objects or a nested mapping:
+A template is a Jinja2 file that renders to YAML. Its **top-level keys are ACI
+class names** (`fvTenant`, `fvAp`, `mcpInstPol`, ...), handled by `CobraBuilder`.
+
+Every **sheet of the workbook runs the same template**, one row at a time, and
+each sheet is compiled separately onto the same `ConfigRequest`. As a result the
+top-level key must match the sheet name (singular) and each object is written for
+a **single row** — no `{% for %}` over the sheet is needed:
 
 ```jinja
 fvTenant:
-  - name: {{ tenant_name }}
-    descr: {{ tenant_descr }}
-    status: {{ status }}
+  - name: {{ fvTenant.name }}
+    descr: {{ fvTenant.descr }}
 
 fvAp:
-  - name: web
-    fvRsCtx:
-      tnFvCtxName: {{ vrf }}
+  - name: {{ fvAp.name }}
+    tenant: {{ fvAp.tenant }}
 ```
+
+Internal loops (for example expanding a VLAN range) are still supported inside a
+section. A template with no sheet variables at all (using `{% set %}` or
+`aci.variables`) is rendered once as a whole.
 
 Rendering uses a **coercion-free YAML loader**: YAML ints/floats/bools are kept
 as strings so APIC values are never mangled, and the string `nan` becomes `""`.
@@ -106,11 +112,16 @@ as strings so APIC values are never mangled, and the string `nan` becomes `""`.
 
 Both `aci.xlsx` and `aci.csv` accept a filename or a list of filenames:
 
-- An **XLSX** workbook loads one variable per **sheet**, named after the sheet.
-- A **CSV** file loads one variable named after the file **stem**.
+- An **XLSX** workbook contributes one entry per **sheet**, named after the
+  sheet. The sheet name must be the ACI class (singular), e.g. `fvTenant`.
+- A **CSV** file contributes one entry named after the file **stem**.
 
-Each variable is a list of row dicts, so a sheet named `tenants` is used as
-`{% for row in tenants %}`.
+Each sheet is a list of row dicts. When a template section matches a sheet name,
+it is rendered once per row with the row exposed under that name
+(`{{ fvTenant.name }}`).
+
+Scalar variables set through `aci.variables` (or the `variables` property) are
+available to every render.
 
 ### Filtering
 
@@ -118,7 +129,8 @@ Each variable is a list of row dicts, so a sheet named `tenants` is used as
   (default `tag`). Rows with empty/`NaN` tags are always dropped.
 - `filters_source_sheet`: derive the filter values from a dedicated sheet. Rows
   where `filters_condition_field` (default `enabled`) is truthy contribute their
-  `filters_output_field` (default `name`) as a filter value.
+  `filters_output_field` (default `name`) as a filter value. It is only used when
+  `filters` is empty; explicit `filters` always win.
 
 ```python
 aci = DeployClass(

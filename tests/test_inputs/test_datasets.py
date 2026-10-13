@@ -19,6 +19,14 @@ def test_apply_filter_with_filters():
     assert apply_filter(_df(), "tag", ["a"]) == [{"tag": "a", "name": "x"}]
 
 
+def test_apply_filter_strips_whitespace():
+    df = pd.DataFrame({"tag": ["a ", " b"], "name": ["x", "y"]})
+
+    result = apply_filter(df, "tag", ["a", "b"])
+
+    assert result == [{"tag": "a ", "name": "x"}, {"tag": " b", "name": "y"}]
+
+
 def test_apply_filter_missing_column():
     assert apply_filter(_df(), "missing", ["a"]) == []
 
@@ -56,13 +64,29 @@ def test_load_xlsx_missing_filters_sheet(tmp_path):
         load_xlsx(path, by="tag", filters_source_sheet="nope")
 
 
+def test_load_xlsx_explicit_filters_win_over_source_sheet(tmp_path):
+    path = tmp_path / "data.xlsx"
+    with pd.ExcelWriter(path) as writer:
+        pd.DataFrame({"tag": ["a", "b"], "name": ["x", "y"]}).to_excel(
+            writer, sheet_name="tenants", index=False
+        )
+        pd.DataFrame({"name": ["b"], "enabled": [True]}).to_excel(
+            writer, sheet_name="filters", index=False
+        )
+
+    result = load_xlsx(path, filters=["a"], by="tag", filters_source_sheet="filters")
+
+    assert result["tenants"] == [{"tag": "a", "name": "x"}]
+
+
 def test_data_loader_csv(tmp_path):
     pd.DataFrame({"tag": ["a"], "name": ["x"]}).to_csv(tmp_path / "d.csv", index=False)
 
     loader = DataLoader(tmp_path)
     loader.add_csv("d.csv")
 
-    assert loader.variables == {"d": [{"tag": "a", "name": "x"}]}
+    assert loader.sheets == {"d": [{"tag": "a", "name": "x"}]}
+    assert loader.variables == {}
 
 
 def test_data_loader_xlsx(tmp_path):
@@ -73,7 +97,8 @@ def test_data_loader_xlsx(tmp_path):
     loader = DataLoader(tmp_path)
     loader.add_xlsx("d.xlsx")
 
-    assert loader.variables == {"tenants": [{"tag": "a", "name": "x"}]}
+    assert loader.sheets == {"tenants": [{"tag": "a", "name": "x"}]}
+    assert loader.variables == {}
 
 
 def test_data_loader_accepts_list_of_files(tmp_path):
@@ -83,7 +108,7 @@ def test_data_loader_accepts_list_of_files(tmp_path):
     loader = DataLoader(tmp_path)
     loader.add_csv(["one.csv", "two.csv"])
 
-    assert set(loader.variables) == {"one", "two"}
+    assert set(loader.sheets) == {"one", "two"}
 
 
 def test_data_loader_rejects_invalid_type(tmp_path):
@@ -99,7 +124,7 @@ def test_data_loader_logs_csv_errors(tmp_path, caplog):
     with caplog.at_level(logging.ERROR, logger="devaci"):
         loader.add_csv("missing.csv")
 
-    assert loader.variables == {}
+    assert loader.sheets == {}
     assert any("Error loading CSV" in record.getMessage() for record in caplog.records)
 
 
@@ -109,5 +134,5 @@ def test_data_loader_logs_xlsx_errors(tmp_path, caplog):
     with caplog.at_level(logging.ERROR, logger="devaci"):
         loader.add_xlsx("missing.xlsx")
 
-    assert loader.variables == {}
+    assert loader.sheets == {}
     assert any("Error loading XLSX" in record.getMessage() for record in caplog.records)

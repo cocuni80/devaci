@@ -27,10 +27,18 @@ class JinjaRenderer:
         self._env.filters["range"] = range_filter
         self._env.filters["nan"] = nan_filter
 
-    def render(self, template: str, **variables: Any) -> dict[str, Any]:
-        """Render ``template`` with ``variables`` and parse the YAML output."""
+    def compile(self, template: str) -> jinja2.Template:
+        """Compile ``template`` once so it can be rendered many times."""
         try:
-            rendered = self._env.from_string(template).render(**variables)
+            return self._env.from_string(template)
+        except Exception as exc:
+            line = getattr(exc, "lineno", None)
+            raise JinjaError(f"[Jinja] -> [{type(exc).__name__}]: {exc}. Line: {line}") from exc
+
+    def render_template(self, template: jinja2.Template, **variables: Any) -> dict[str, Any]:
+        """Render a compiled ``template`` with ``variables`` and parse the YAML output."""
+        try:
+            rendered = template.render(**variables)
         except Exception as exc:
             line = getattr(exc, "lineno", None)
             raise JinjaError(f"[Jinja] -> [{type(exc).__name__}]: {exc}. Line: {line}") from exc
@@ -39,3 +47,7 @@ class JinjaRenderer:
         if not isinstance(output, dict):
             raise JinjaError("[Jinja] -> [ConfigError]: Template did not produce a mapping.")
         return output
+
+    def render(self, template: str, **variables: Any) -> dict[str, Any]:
+        """Render ``template`` with ``variables`` and parse the YAML output."""
+        return self.render_template(self.compile(template), **variables)

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b1] - 2026-10-12
+
+### Changed
+
+- Rendering is per sheet now: the shared template is split into per-class
+  fragments (`rendering/sections.py`) and each sheet is rendered once per row
+  and compiled separately onto the same `ConfigRequest`. Templates no longer
+  need an outer `{% for %}`; the sheet name must be the ACI class (singular).
+
+### Fixed
+
+- Explicit `filters` take precedence over `filters_source_sheet`.
+- `apply_filter` matches tags ignoring surrounding whitespace.
+
+### Breaking
+
+- The previous single-render flow (one template with `{% for %}` over plural
+  sheet variables) is replaced. `DataLoader.variables` no longer holds sheets;
+  rows live in `DataLoader.sheets`.
+
 ## [2.0.0a3] - 2026-10-09
 
 ### Added

@@ -7,14 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from devaci.cobra import CobraBuilder
+from devaci.cobra.builders import BUILDERS
 from devaci.config import DeployConfig
 from devaci.console import get_logger
-from devaci.exceptions import DeployError
 from devaci.inputs.datasets import DataLoader
 from devaci.inputs.templates import TemplateSource
 from devaci.output.runlog import RunLog
 from devaci.output.writer import OutputWriter
 from devaci.rendering.jinja import JinjaRenderer
+from devaci.rendering.sections import split_template
 from devaci.results import DeployResult, Result
 from devaci.transport.apic import ApicSession
 
@@ -88,27 +89,69 @@ class DeployClass:
     def _deploy_one(self, content: str, path: Path) -> DeployResult:
         name = path.name if isinstance(path, Path) else str(path)
         logs: list[str] = []
-        success = False
+        success = True
+        before = len(self._cobra.config.configMos)
 
         try:
             renderer = JinjaRenderer()
-            output = renderer.render(content, **self._data.variables)
-            logs.append(f"Template {name} rendered successfully (Jinja).")
-            logger.info("Template %s rendered successfully (Jinja).", name)
+            names = set(self._data.sheets) | set(BUILDERS)
+            preamble, sections = split_template(content, names)
+            data_keys = [key for key in sections if key in self._data.sheets]
 
-            cobra_result = self._cobra.render(output)
-            logs.extend(cobra_result.log)
-            if not cobra_result.success:
-                raise DeployError(f"Template {name} failed to render Cobra objects.")
+            if data_keys:
+                success = self._render_sections(renderer, preamble, sections, name, logs)
+            else:
+                output = renderer.render(content, **self._data.variables)
+                result = self._cobra.render(output)
+                logs.extend(result.log)
+                success = result.success
 
-            logs.append(f"Template {name} rendered successfully (Cobra).")
-            logger.info("Template %s rendered successfully (Cobra).", name)
-            success = True
+            if data_keys and len(self._cobra.config.configMos) == before:
+                result = self._cobra.render({})
+                logs.extend(result.log)
+                success = success and result.success
         except Exception as exc:
+            success = False
             logs.append(f"Failed to render template {name}: {type(exc).__name__}.")
             logger.exception("Failed to render template %s.", name)
 
         return DeployResult(success=success, log=logs, path=str(path), name=name)
+
+    def _render_sections(
+        self,
+        renderer: JinjaRenderer,
+        preamble: str,
+        sections: dict[str, str],
+        name: str,
+        logs: list[str],
+    ) -> bool:
+        """Render every section and compile each sheet's objects separately."""
+        success = True
+        for key, fragment in sections.items():
+            objects = self._render_objects(renderer, preamble, fragment, key)
+            if not objects:
+                continue
+            result = self._cobra.render({key: objects})
+            logs.extend(result.log)
+            success = success and result.success
+            logger.info("Template %s section %s rendered (%d objects).", name, key, len(objects))
+        return success
+
+    def _render_objects(
+        self, renderer: JinjaRenderer, preamble: str, fragment: str, key: str
+    ) -> list[dict[str, Any]]:
+        """Render one section once per sheet row (or a single time for static ones)."""
+        template = renderer.compile(preamble + fragment)
+        rows = self._data.sheets.get(key)
+        if rows is None:
+            output = renderer.render_template(template, **self._data.variables)
+            return list(output.get(key) or [])
+
+        objects: list[dict[str, Any]] = []
+        for row in rows:
+            output = renderer.render_template(template, **{**self._data.variables, key: row})
+            objects.extend(output.get(key) or [])
+        return objects
 
     def _build_apic(self) -> tuple[ApicSession, str | None]:
         """Build the APIC session, prompting for missing credentials interactively."""
@@ -189,19 +232,19 @@ class DeployClass:
         return self._cobra.xml if self._config.render_to_xml else self._cobra.json
 
     @property
-    def csv(self) -> dict[str, Any]:
-        return self._data.variables
+    def csv(self) -> dict[str, list[dict[str, Any]]]:
+        return self._data.sheets
 
     @csv.setter
     def csv(self, value: Any) -> None:
-        """Load CSV file(s) into the variables dict."""
+        """Load CSV file(s) into the sheets mapping."""
         self._data.add_csv(value)
 
     @property
-    def xlsx(self) -> dict[str, Any]:
-        return self._data.variables
+    def xlsx(self) -> dict[str, list[dict[str, Any]]]:
+        return self._data.sheets
 
     @xlsx.setter
     def xlsx(self, value: Any) -> None:
-        """Load XLSX file(s) into the variables dict."""
+        """Load XLSX file(s) into the sheets mapping."""
         self._data.add_xlsx(value)

@@ -1,4 +1,4 @@
-"""Tabular input loading (CSV/XLSX), filtering, and template variables."""
+"""Tabular input loading (CSV/XLSX), filtering, and per-sheet rows."""
 
 from __future__ import annotations
 
@@ -31,11 +31,13 @@ def apply_filter(
         return []
 
     series = df[column]
+    # Tags may carry stray whitespace (e.g. 'OC165894 '), so normalise both the
+    # sheet values and the requested filter values before comparing them.
+    normalized = series.astype(str).str.strip()
+    wanted = [str(value).strip() for value in filters]
     return cast(
         "list[dict[str, Any]]",
-        df[series.notna() & series.astype(str).str.strip().ne("") & series.isin(filters)].to_dict(
-            orient="records"
-        ),
+        df[series.notna() & normalized.ne("") & normalized.isin(wanted)].to_dict(orient="records"),
     )
 
 
@@ -60,8 +62,9 @@ def load_xlsx(
 ) -> dict[str, list[dict[str, Any]]]:
     """Load an XLSX workbook into ``{sheet_name: [records]}``.
 
-    Optionally derives the filter values from a dedicated sheet
-    (``filters_source_sheet``) using a boolean condition column.
+    Explicit ``filters`` take precedence; filter values are only derived from
+    ``filters_source_sheet`` (a boolean condition column) when ``filters`` is
+    empty.
     """
     path = Path(path)
     with warnings.catch_warnings():
@@ -73,7 +76,7 @@ def load_xlsx(
         sheets = pd.read_excel(path, sheet_name=None)
 
     resolved_filters = filters
-    if filters_source_sheet:
+    if filters_source_sheet and not filters:
         df_filters = sheets.get(filters_source_sheet)
         if df_filters is None:
             raise DataError(f"Sheet '{filters_source_sheet}' does not exist in '{path}'!")
@@ -85,7 +88,7 @@ def load_xlsx(
 
 
 class DataLoader:
-    """Loads CSV/XLSX sheets into the template variable namespace."""
+    """Loads CSV/XLSX sheets into per-sheet row mappings and scalar globals."""
 
     def __init__(
         self,
@@ -103,14 +106,21 @@ class DataLoader:
         self._condition_field = condition_field
         self._output_field = output_field
         self._variables: dict[str, Any] = {}
+        self._sheets: dict[str, list[dict[str, Any]]] = {}
 
     @property
     def variables(self) -> dict[str, Any]:
+        """Scalar variables available to every render (not per-sheet rows)."""
         return self._variables
 
     @variables.setter
     def variables(self, value: dict[str, Any]) -> None:
         self._variables = value
+
+    @property
+    def sheets(self) -> dict[str, list[dict[str, Any]]]:
+        """Loaded sheet rows, keyed by sheet name (or CSV file stem)."""
+        return self._sheets
 
     @staticmethod
     def _as_files(value: Any) -> list[Any]:
@@ -126,18 +136,18 @@ class DataLoader:
         raise TypeError(f"Expected a filename or a list of filenames, got {type(value).__name__}.")
 
     def add_csv(self, value: Any) -> None:
-        """Merge CSV sheet(s) into the variables dict."""
+        """Merge CSV sheet(s) into the sheets mapping."""
         for file in self._as_files(value):
             try:
-                self._variables |= load_csv(self._working_folder / file, self._filters, self._by)
+                self._sheets |= load_csv(self._working_folder / file, self._filters, self._by)
             except Exception:
                 logger.exception("Error loading CSV file %r.", file)
 
     def add_xlsx(self, value: Any) -> None:
-        """Merge XLSX sheet(s) into the variables dict."""
+        """Merge XLSX sheet(s) into the sheets mapping."""
         for file in self._as_files(value):
             try:
-                self._variables |= load_xlsx(
+                self._sheets |= load_xlsx(
                     self._working_folder / file,
                     self._filters,
                     self._by,
