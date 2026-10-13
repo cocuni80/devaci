@@ -29,6 +29,8 @@ The importable package is `cobra` (not `acicobra`). `vendor/` only holds `acicob
 
 Pipeline: input data + template -> `JinjaRenderer.render` (template -> YAML dict) -> `CobraBuilder.render` (dict -> `ConfigRequest`) -> output / APIC commit. Orchestrated by `DeployClass` in `src/devaci/deploy.py`.
 
+Rendering is **per sheet**: each XLSX sheet is compiled separately onto the same (cumulative) `ConfigRequest`. The shared template is split into per-class fragments by `split_template` (`src/devaci/rendering/sections.py`); a sheet is matched to the fragment whose top-level key equals the (singular) sheet name, rendered once per row, and the template's outer `{% for %}` is gone. A template that references no sheet is rendered once as a whole. `DataLoader` keeps sheet rows in `sheets` and scalar globals in `variables` (`inputs/datasets.py`).
+
 The package is organized by layer: `inputs/` (templates + tabular data), `rendering/` (Jinja + filters + YAML loader), `output/` (writer + run history), `transport/` (APIC session) and `cobra/` (config builder). Shared result models live in `results.py`, centralized logging + the shared rich console in `console.py`, and small shared value predicates in `_values.py` (import via `get_logger`/`get_console`, never create handlers/consoles elsewhere).
 
 - `DeployClass` is configured via a typed `DeployConfig` (`src/devaci/config.py`) or, for backwards compatibility, `**kwargs` at construction; then driven through property setters: set `.template`, optionally `.xlsx`/`.csv`/`.variables`, then call `.deploy()`.
@@ -54,4 +56,4 @@ Gitignored and private: `vendor/` (Cobra SDK wheels), `tests/testing/` (real `.x
 ## Versioning & branches
 
 - Version lives ONLY in `pyproject.toml`; `devaci/__init__.py` reads it via `importlib.metadata`. Do not hardcode or bump it except when publishing.
-- `main` = stable `1.x`; `next` = `2.x` pre-releases (`2.0.0a3` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main` and `next`) publishes on GitHub release via trusted publishing.
+- `main` = stable `1.x`; `next` = `2.x` pre-releases (`2.0.0b1` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main` and `next`) publishes on GitHub release via trusted publishing.
