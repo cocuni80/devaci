@@ -18,6 +18,7 @@ def deploy(tmp_path: Path) -> Callable[..., DeployClass]:
     def _make(**kwargs: Any) -> DeployClass:
         kwargs.setdefault("testing", True)
         kwargs.setdefault("logging", False)
+        kwargs.setdefault("show_report", False)
         kwargs.setdefault("working_folder", tmp_path)
         return DeployClass(**kwargs)
 

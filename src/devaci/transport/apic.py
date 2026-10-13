@@ -27,7 +27,7 @@ class ApicSession:
         username: str | None,
         password: str | None,
         secure: bool,
-        timeout: int,
+        timeout: int | tuple[int, int],
         timer: int,
         ip: str | None,
     ) -> None:
