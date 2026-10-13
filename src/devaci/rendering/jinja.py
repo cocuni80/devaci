@@ -33,19 +33,20 @@ class JinjaRenderer:
             return self._env.from_string(template)
         except Exception as exc:
             line = getattr(exc, "lineno", None)
-            raise JinjaError(f"[Jinja] -> [{type(exc).__name__}]: {exc}. Line: {line}") from exc
+            location = f" at line {line}" if line is not None else ""
+            raise JinjaError(f"failed to compile template{location}: {exc}") from exc
 
     def render_template(self, template: jinja2.Template, **variables: Any) -> dict[str, Any]:
         """Render a compiled ``template`` with ``variables`` and parse the YAML output."""
         try:
             rendered = template.render(**variables)
+            output = load_yaml(rendered)
         except Exception as exc:
             line = getattr(exc, "lineno", None)
-            raise JinjaError(f"[Jinja] -> [{type(exc).__name__}]: {exc}. Line: {line}") from exc
-
-        output = load_yaml(rendered)
+            location = f" at line {line}" if line is not None else ""
+            raise JinjaError(f"failed to render template{location}: {exc}") from exc
         if not isinstance(output, dict):
-            raise JinjaError("[Jinja] -> [ConfigError]: Template did not produce a mapping.")
+            raise JinjaError("template did not produce a mapping")
         return output
 
     def render(self, template: str, **variables: Any) -> dict[str, Any]:

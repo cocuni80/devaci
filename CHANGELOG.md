@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b2] - 2026-10-12
+
+### Added
+
+- Structured run reporting: `DeployClass.deploy()` builds one run record
+  (version, mode, filters, per-template objects/duration and structured `log`
+  events) and prints a summary by default (`show_report=True`; opt out with
+  `show_report=False`, `verbose=True` for per-class detail).
+- `DeployClass.print_report()` (latest run) and
+  `DeployClass.print_reports(limit=5, paginate=True)` (history; press SPACE to
+  page through older runs, `paginate=False` prints them all).
+- `DeployClass.run`, `DeployClass.success` and `RunLog.iter_runs()`.
+- Errors carry type, cause and message; `console.get_error_console()` sends
+  report failures to stderr.
+
+### Changed
+
+- Run history is JSON Lines (`.jsonl`), appended one run per line instead of
+  rewriting a JSON array; `RunLog.last()` reads only the final record.
+- `Result.log` is now a list of structured events (`level`, `where`, `message`,
+  `type`, `cause`, `objects`).
+- `DeployConfig` gains `show_report`, `verbose` and `connect_timeout` (APIC
+  connect timeout, separate from the read `timeout`).
+
+### Fixed
+
+- Error messages dropped the `[Component] -> [Type]` prefixes and use exception
+  chaining.
+
 ## [2.0.0b1] - 2026-10-12
 
 ### Changed

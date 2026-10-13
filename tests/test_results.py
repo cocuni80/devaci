@@ -7,8 +7,12 @@ from devaci.results import CobraResult, DeployResult, JinjaResult, Result
 
 
 def test_result_to_dict():
-    result = Result(success=True, log=["a"], date="d")
-    assert result.to_dict() == {"date": "d", "success": True, "log": ["a"]}
+    result = Result(success=True, log=[{"level": "info", "message": "rendered"}], date="d")
+    assert result.to_dict() == {
+        "date": "d",
+        "success": True,
+        "log": [{"level": "info", "message": "rendered"}],
+    }
 
 
 def test_deploy_result_to_dict():

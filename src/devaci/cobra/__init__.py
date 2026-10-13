@@ -10,6 +10,7 @@ import cobra.model.pol
 from devaci.cobra.base import config_json, config_xml
 from devaci.cobra.builders import BUILDERS
 from devaci.console import get_logger
+from devaci.exceptions import CobraError
 from devaci.results import CobraResult
 
 logger = get_logger(__name__)
@@ -70,7 +71,7 @@ class CobraBuilder:
         Keys with empty values are skipped; unknown keys and handler errors
         are logged and reported via the returned :class:`CobraResult`.
         """
-        logs: list[str] = []
+        logs: list[dict[str, Any]] = []
         success = True
 
         for key, value in output.items():
@@ -80,27 +81,36 @@ class CobraBuilder:
             handler = BUILDERS.get(key)
             if handler is None:
                 success = False
-                msg = f"Class {key} does not exist."
+                msg = f"unknown object type {key}"
                 logger.warning("%s", msg)
-                logs.append(msg)
+                logs.append({"level": "error", "where": key, "message": msg, "type": "CobraError"})
                 continue
 
             try:
                 handler(self, value)
-                msg = f"Class {key} rendered successfully."
+                msg = "rendered"
                 logger.info("%s", msg)
-                logs.append(msg)
+                logs.append({"level": "info", "where": key, "message": msg, "objects": len(value)})
             except Exception as exc:
                 success = False
-                msg = f"Class {key} failed: {exc}"
+                error = CobraError(f"failed to build {key}: {exc}")
+                msg = str(error)
                 logger.exception("%s", msg)
-                logs.append(msg)
+                logs.append(
+                    {
+                        "level": "error",
+                        "where": key,
+                        "message": msg,
+                        "type": type(error).__name__,
+                        "cause": type(exc).__name__,
+                    }
+                )
 
         if not self.config.configMos:
             success = False
-            msg = "No object was found in configuration."
+            msg = "no object was found in configuration"
             logger.warning("%s", msg)
-            logs.append(msg)
+            logs.append({"level": "error", "message": msg, "type": "CobraError"})
 
         self.result = CobraResult(success=success, log=logs, config=self.config)
         return self.result

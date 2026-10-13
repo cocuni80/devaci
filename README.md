@@ -48,6 +48,8 @@ aci = DeployClass(
     file_output="outputs/scripts/config",   # optional: save XML/JSON
     show_output=False,            # print the rendered config to the terminal
     logging=True,                 # append results to logging_output (JSON)
+    timeout=180,                  # APIC read timeout in seconds
+    connect_timeout=5,            # APIC connect timeout in seconds
 )
 
 aci.xlsx = "data/aci.xlsx"        # load every sheet as per-row data
@@ -151,11 +153,32 @@ aci = DeployClass(
 - `show_output=True`: pretty-print the rendered config to the terminal.
 - `save_output(name)` / `print_output()` can be called directly.
 
+## Report
+
+Every `deploy()` builds one **run record** and prints a summary by default
+(`show_report=True`). Failures go to stderr; opt out with `show_report=False`
+and add per-class detail with `verbose=True`:
+
+```python
+aci = DeployClass(show_report=True, verbose=False)
+aci.deploy()               # prints the latest run automatically
+
+aci.print_report()                        # latest run
+aci.print_reports()                       # history, 5 newest first
+aci.print_reports(paginate=False)         # whole history
+```
+
+`print_reports()` shows the 5 most recent runs and waits for **SPACE** to page
+through older ones (any other key stops); with `paginate=False` it prints the
+whole history. The report reads the persisted history, so `logging` must be
+enabled for paging beyond the current process; the latest run always comes from
+memory.
+
 ## Logging
 
 devaci uses the standard library `logging` module. It attaches a
-`NullHandler` on import (no output by default); opt in with the public
-`configure_logging()`:
+`NullHandler` on import, so **stdlib logging** prints nothing by default; opt in
+with the public `configure_logging()`:
 
 ```python
 import logging
@@ -170,8 +193,12 @@ normal logging configuration. Terminal output of rendered configuration and the
 APIC countdown go through the shared rich console in `devaci.console`.
 
 > `RunLog` (`logging_output`, default `outputs/logs/logging.json`, relative to
-> `working_folder`) is a JSON **execution history**, not stdlib logging. Disable
-> with `logging=False`.
+> `working_folder`) is a JSON Lines **execution history** (`.jsonl`, one run per
+> line), not stdlib logging. Disable persistence with `logging=False`.
+
+> The run **report** is independent of both stdlib logging and the `logging`
+> persistence flag: it prints by default (`show_report=True`; set it to `False`
+> to silence it) and reads the `.jsonl` history whenever the file exists.
 
 ## Project structure
 

@@ -21,6 +21,41 @@ class DeployConfig:
     Mirrors the keyword arguments accepted at construction time. Keeping the
     options in a dataclass gives type checking and autocompletion while
     :meth:`from_kwargs` preserves the legacy ``DeployClass(**kwargs)`` API.
+
+    Attributes:
+        testing: Dry run. Skip the commit and the interactive APIC credential
+            prompt (default ``False``).
+        ip: APIC IP/hostname. Prompted at commit time when missing.
+        username: APIC username. Prompted at commit time when missing.
+        password: APIC password. Prompted at commit time when missing.
+        timeout: APIC read timeout in seconds (default ``180``).
+        connect_timeout: APIC connection timeout in seconds (default ``5``).
+        secure: Verify the APIC TLS certificate (default ``False``).
+        timer: Countdown in seconds shown before committing (default ``5``).
+        show_output: Pretty-print the rendered configuration to the terminal
+            (default ``False``).
+        file_output: Base path (relative to ``working_folder``) to save the
+            rendered configuration; the ``.xml``/``.json`` suffix is added.
+        logging_output: History location relative to ``working_folder``; the
+            ``.jsonl`` suffix is added (default ``outputs/logs/logging.json``).
+        logging: Persist one run record per ``deploy()`` to the history
+            (default ``True``); it does not control the printed report.
+        show_report: Print the run report at the end of ``deploy()``
+            (default ``True``; set ``False`` to stay quiet).
+        verbose: Add per-class detail to the report (default ``False``).
+        render_to_xml: Render the configuration as XML (default ``True``) or
+            JSON (``False``).
+        filters: Values to keep, matched against the ``filter_by`` column.
+            Takes precedence over ``filters_source_sheet``.
+        filter_by: Column used to match ``filters`` (default ``tag``).
+        filters_source_sheet: Fully qualified sheet used to derive the filter
+            values when ``filters`` is empty.
+        filters_condition_field: Boolean column of ``filters_source_sheet`` used
+            to select rows (default ``enabled``).
+        filters_output_field: Column of ``filters_source_sheet`` whose values
+            become the filters (default ``name``).
+        working_folder: Base folder for templates, data, outputs and history
+            (default: current directory).
     """
 
     testing: bool = False
@@ -28,12 +63,15 @@ class DeployConfig:
     username: str | None = None
     password: str | None = None
     timeout: int = 180
+    connect_timeout: int = 5
     secure: bool = False
     timer: int = 5
     show_output: bool = False
     file_output: str | None = None
     logging_output: str = "outputs/logs/logging.json"
     logging: bool = True
+    show_report: bool = True
+    verbose: bool = False
     render_to_xml: bool = True
     filters_source_sheet: str | None = None
     filters_condition_field: str = "enabled"

@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from devaci import DeployClass
@@ -186,3 +188,193 @@ def test_deploy_variable_named_name(deploy):
 
     assert aci.results[0]["success"] is True
     assert "test" in aci.config
+
+
+def test_deploy_persists_one_structured_run_per_line(deploy, tmp_path):
+    aci = deploy(logging=True, show_report=False)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    path = tmp_path / "outputs/logs/logging.jsonl"
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["mode"] == "dry_run"
+    assert records[0]["templates"][0]["objects"] == 1
+    assert records[0]["templates"][0]["log"] == [
+        {"level": "info", "where": "fvTenant", "message": "rendered", "objects": 1}
+    ]
+
+
+def test_deploy_report_can_be_disabled(deploy, capsys):
+    aci = deploy(show_report=False)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    assert capsys.readouterr().out == ""
+    assert aci.success is True
+
+
+def test_failed_commit_keeps_error_for_the_report(monkeypatch):
+    monkeypatch.setattr(
+        "devaci.transport.apic.ApicSession.commit",
+        lambda self, config: (_ for _ in ()).throw(ConnectionError("host unreachable")),
+    )
+    aci = DeployClass(
+        testing=False,
+        ip="1.1.1.1",
+        username="u",
+        password="p",
+        timer=0,
+        logging=False,
+        show_report=False,
+    )
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    commit = aci.run["commit"]
+    assert commit["success"] is False
+    assert commit["log"][0]["type"] == "ConnectionError"
+    assert "host unreachable" in commit["log"][0]["message"]
+
+
+def test_print_report_shows_latest_run(deploy, capsys):
+    aci = deploy()
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    aci.print_report()
+
+    out = capsys.readouterr().out
+    assert "tenant.j2" in out
+    assert "Result: OK" in out
+
+
+def test_print_reports_without_pagination_prints_all(deploy, capsys):
+    aci = deploy(logging=True)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+    aci.deploy()
+
+    aci.print_reports(paginate=False)
+
+    assert capsys.readouterr().out.count("Result: OK") == 2
+
+
+def test_print_reports_paginated_stops_without_tty(deploy, capsys):
+    aci = deploy(logging=True)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    for _ in range(3):
+        aci.deploy()
+
+    aci.print_reports(limit=1)
+
+    out = capsys.readouterr().out
+    assert out.count("Result: OK") == 1
+    assert "older runs not shown" in out
+
+
+def test_unmatched_sheets_are_debug_only(deploy, tmp_path):
+    with pd.ExcelWriter(tmp_path / "data.xlsx") as writer:
+        pd.DataFrame([{"name": "acme"}]).to_excel(writer, sheet_name="fvTenant", index=False)
+        pd.DataFrame([{"name": "x"}]).to_excel(writer, sheet_name="OCs", index=False)
+
+    aci = deploy()
+    aci.xlsx = "data.xlsx"
+    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
+    aci.deploy()
+
+    log = aci.run["templates"][0]["log"]
+    assert all(event["level"] != "warning" for event in log)
+    assert any(event["level"] == "debug" and "OCs" in event["message"] for event in log)
+
+
+def test_report_without_templates(deploy, capsys):
+    aci = deploy(show_report=True)
+
+    aci.deploy()
+
+    assert "nothing to do" in capsys.readouterr().out
+
+
+def test_verbose_report_includes_object_counts(deploy, tmp_path, capsys):
+    pd.DataFrame([{"name": "acme"}, {"name": "beta"}]).to_excel(
+        tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
+    )
+
+    aci = deploy(verbose=True)
+    aci.xlsx = "data.xlsx"
+    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
+    aci.deploy()
+
+    aci.print_report()
+
+    assert "fvTenant: rendered (2 objects)" in capsys.readouterr().out
+
+
+def test_report_prefers_current_run_over_stale_file(deploy, monkeypatch, capsys):
+    aci = deploy(logging=True)
+    aci.template = ("fvTenant:\n  - name: acme\n", "one.j2")
+    aci.deploy()
+
+    monkeypatch.setattr(aci._runlog, "last", lambda: {"stale": True})
+    aci.print_report()
+
+    assert "one.j2" in capsys.readouterr().out
+
+
+def test_report_shows_all_errors(deploy, monkeypatch, capsys):
+    from devaci.cobra.builders import BUILDERS
+
+    def boom(builder, value):
+        raise ValueError("nope")
+
+    monkeypatch.setitem(BUILDERS, "fvTenant", boom)
+    monkeypatch.setitem(BUILDERS, "fvBD", boom)
+
+    aci = deploy()
+    aci.template = ("fvTenant:\n  - name: t\n\nfvBD:\n  - name: b\n", "both.j2")
+    aci.deploy()
+
+    aci.print_report()
+
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    assert "failed to build fvTenant" in text
+    assert "failed to build fvBD" in text
+
+
+def test_deploy_without_templates_resets_results(deploy):
+    aci = deploy()
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+    assert aci.results
+
+    aci._templates._templates.clear()
+    aci.deploy()
+
+    assert aci.results == []
+    assert aci.run["templates"] == []
+
+
+def test_print_report_reads_file_regardless_of_logging(deploy, capsys):
+    aci = deploy(logging=True)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    aci._config.logging = False
+    aci._run = None
+    aci.print_report()
+
+    assert "tenant.j2" in capsys.readouterr().out
+
+
+def test_print_reports_reads_file_regardless_of_logging(deploy, capsys):
+    aci = deploy(logging=True)
+    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.deploy()
+
+    aci._config.logging = False
+    aci._run = None
+    aci.print_reports()
+
+    assert "tenant.j2" in capsys.readouterr().out

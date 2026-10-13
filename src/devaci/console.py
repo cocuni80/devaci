@@ -18,6 +18,7 @@ __all__ = [
     "LOG_FORMAT",
     "configure_logging",
     "get_console",
+    "get_error_console",
     "get_logger",
     "logger",
 ]
@@ -30,6 +31,7 @@ logger = logging.getLogger(LOGGER_NAME)
 logger.addHandler(logging.NullHandler())
 
 _console: Console | None = None
+_error_console: Console | None = None
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
@@ -80,3 +82,11 @@ def get_console() -> Console:
     if _console is None:
         _console = Console()
     return _console
+
+
+def get_error_console() -> Console:
+    """Return the shared Rich console for report errors (stderr)."""
+    global _error_console
+    if _error_console is None:
+        _error_console = Console(stderr=True)
+    return _error_console

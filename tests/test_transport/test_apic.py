@@ -21,7 +21,7 @@ class _FakeModir:
 
 
 def _session() -> ApicSession:
-    return ApicSession("https://apic", "u", "p", False, 10, 0, "apic")
+    return ApicSession("https://apic", "u", "p", False, (2, 10), 0, "apic")
 
 
 def test_commit_logs_in_commits_and_logs_out(monkeypatch):

@@ -22,6 +22,12 @@ def test_render_variable_named_name():
     assert out == {"fvTenant": [{"name": "acme"}]}
 
 
+def test_render_undefined_is_empty():
+    renderer = JinjaRenderer()
+    out = renderer.render("fvTenant:\n  - name: {{ missing }}\n")
+    assert out == {"fvTenant": [{"name": None}]}
+
+
 def test_render_syntax_error():
     renderer = JinjaRenderer()
     with pytest.raises(JinjaError):

@@ -12,7 +12,7 @@ __all__ = ["CobraResult", "DeployResult", "JinjaResult", "Result"]
 
 
 def _timestamp() -> str:
-    return datetime.now().strftime("%d/%m/%Y-%H:%M:%S")
+    return datetime.now().isoformat(timespec="seconds")
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class Result:
     """Base result shared by all devaci phases."""
 
     success: bool = False
-    log: list[str] = field(default_factory=list)
+    log: list[dict[str, Any]] = field(default_factory=list)
     date: str = field(default_factory=_timestamp)
 
     def to_dict(self) -> dict[str, Any]:
