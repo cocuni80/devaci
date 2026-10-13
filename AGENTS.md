@@ -57,4 +57,4 @@ Gitignored and private: `vendor/` (Cobra SDK wheels), `tests/testing/` (real `.x
 ## Versioning & branches
 
 - Version lives ONLY in `pyproject.toml`; `devaci/__init__.py` reads it via `importlib.metadata`. Do not hardcode or bump it except when publishing.
-- `main` = stable `1.x`; `next` = `2.x` pre-releases (`2.0.0` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main` and `next`) publishes on GitHub release via trusted publishing.
+- `main` = stable `2.x`; `next` = `3.x` pre-releases (`3.0.0a1` currently). Development happens on feature branches merged via PR. Committing != publishing; only a PyPI release bumps the version. `.github/workflows/publish.yml` (on `main` and `next`) publishes on GitHub release via trusted publishing.
