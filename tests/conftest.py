@@ -26,5 +26,12 @@ def deploy(tmp_path: Path) -> Callable[..., DeployClass]:
 
 
 @pytest.fixture
-def tenant_template() -> tuple[str, str]:
-    return ("fvTenant:\n  - name: acme\n", "tenant.j2")
+def schema_file(tmp_path: Path) -> Callable[[str], Path]:
+    """Return a factory that writes a schema file into ``tmp_path``."""
+
+    def _write(content: str, name: str = "schema.j2") -> Path:
+        path = tmp_path / name
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    return _write

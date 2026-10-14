@@ -13,16 +13,16 @@ from time import perf_counter
 from typing import Any
 
 from devaci.cobra import CobraBuilder
-from devaci.cobra.builders import BUILDERS
 from devaci.config import DeployConfig
 from devaci.console import get_console, get_error_console, get_logger
 from devaci.inputs.datasets import DataLoader
-from devaci.inputs.templates import TemplateSource
 from devaci.output.runlog import RunLog
 from devaci.output.writer import OutputWriter
 from devaci.rendering.jinja import JinjaRenderer
-from devaci.rendering.sections import split_template
 from devaci.results import DeployResult
+from devaci.schema.engine import SchemaEngine
+from devaci.schema.loader import SchemaLoader
+from devaci.schema.source import SchemaSource
 from devaci.transport.apic import ApicSession
 
 logger = get_logger(__name__)
@@ -71,8 +71,9 @@ class DeployClass:
     def __init__(self, config: DeployConfig | None = None, **kwargs: Any) -> None:
         """Configure the deployment.
 
-        Renders Jinja2 templates against XLSX/CSV input and compiles the result into a
-        Cobra ``ConfigRequest``, optionally committing it to an APIC.
+        Runs the declarative schema (``schema.j2``) against XLSX/CSV input and
+        compiles the result into a Cobra ``ConfigRequest``, optionally
+        committing it to an APIC.
 
         Configure it with a :class:`~devaci.config.DeployConfig` or the equivalent
         keyword arguments (all optional):
@@ -107,7 +108,7 @@ class DeployClass:
         - ``working_folder`` (Path, default: current directory): base folder for
           data, outputs and history.
 
-        Then drive it through the ``template``, ``xlsx``, ``csv`` and ``variables``
+        Then drive it through the ``schema``, ``xlsx``, ``csv`` and ``variables``
         properties and call :meth:`deploy`.
         """
         if config is not None and kwargs:
@@ -115,7 +116,7 @@ class DeployClass:
         self._config = config if config is not None else DeployConfig.from_kwargs(**kwargs)
         self._testing = self._config.testing
         self._cobra = CobraBuilder()
-        self._templates = TemplateSource(self._config.working_folder)
+        self._schema = SchemaSource(self._config.working_folder)
         self._data = DataLoader(
             self._config.working_folder,
             self._config.filters,
@@ -132,28 +133,24 @@ class DeployClass:
         self._run: dict[str, Any] | None = None
 
     def deploy(self) -> None:
-        """Run all configured templates and create one run record."""
-        if not self._templates.templates:
-            logger.warning("No templates configured.")
+        """Run the configured schema and create one run record."""
+        if self._schema.path is None:
+            logger.warning("No schema configured.")
             self._results = []
             self._run = self._empty_run()
             if self._config.show_report:
                 self.print_report()
             return
         started = perf_counter()
-        self._results = []
-        templates: list[dict[str, Any]] = []
-        for content, path in self._templates.templates:
-            record = self._deploy_one(content, path)
-            templates.append(record)
-            self._results.append(record)
+        record = self._deploy_schema()
+        self._results = [record]
 
         if self._config.show_output:
             self.print_output()
         if self._config.file_output:
             self.save_output(self._config.file_output)
 
-        all_success = bool(templates) and all(template["success"] for template in templates)
+        all_success = record["success"]
         commit = self._commit() if not self._testing and all_success else None
         success = all_success and (commit is None or commit["success"])
         self._run = {
@@ -163,7 +160,7 @@ class DeployClass:
             "filters": list(self._config.filters or []),
             "success": success,
             "duration_s": round(perf_counter() - started, 3),
-            "templates": templates,
+            "templates": [record],
             "commit": commit,
         }
         if self._config.logging:
@@ -183,36 +180,31 @@ class DeployClass:
             "commit": None,
         }
 
-    def _deploy_one(self, content: str, path: Path) -> dict[str, Any]:
-        """Render one template and return its structured run template record."""
+    def _deploy_schema(self) -> dict[str, Any]:
+        """Run the configured schema and return its structured run record."""
+        assert self._schema.path is not None
+        path = self._schema.path
         name = path.name
         logs: list[dict[str, Any]] = []
         success = True
-        before = len(self._cobra.config.configMos)
         started = perf_counter()
         try:
-            renderer = JinjaRenderer()
-            names = set(self._data.sheets) | set(BUILDERS)
-            preamble, sections = split_template(content, names)
-            data_keys = [key for key in sections if key in self._data.sheets]
-            for sheet in sorted(set(self._data.sheets) - set(sections)):
-                if self._data.sheets[sheet]:
-                    logs.append(
-                        {"level": "debug", "message": f"sheet '{sheet}' has no matching section"}
-                    )
-            if data_keys:
-                success = self._render_sections(renderer, preamble, sections, name, logs)
-            else:
-                result = self._cobra.render(renderer.render(content, **self._data.variables))
-                logs.extend(result.log)
-                success = result.success
-            if data_keys and len(self._cobra.config.configMos) == before:
-                result = self._cobra.render({})
-                logs.extend(result.log)
-                success = success and result.success
+            schema = SchemaLoader().load(self._schema.read())
+            engine = SchemaEngine(schema, self._data.variables, JinjaRenderer())
+            logs.extend(engine.run(self._cobra, self._data.sheets))
+            success = not any(event["level"] == "error" for event in logs)
+            if success and not any(event["level"] == "info" for event in logs):
+                success = False
+                logs.append(
+                    {
+                        "level": "error",
+                        "message": "no object was found in configuration",
+                        "type": "CobraError",
+                    }
+                )
         except Exception as exc:
             success = False
-            message = f"failed to render template {name}: {exc}"
+            message = f"failed to load schema {name}: {exc}"
             logs.append(
                 {
                     "level": "error",
@@ -229,40 +221,6 @@ class DeployClass:
         record["objects"] = self._objects(logs)
         record["duration_s"] = round(perf_counter() - started, 3)
         return record
-
-    def _render_sections(
-        self,
-        renderer: JinjaRenderer,
-        preamble: str,
-        sections: dict[str, str],
-        name: str,
-        logs: list[dict[str, Any]],
-    ) -> bool:
-        """Render every section and compile each sheet's objects separately."""
-        success = True
-        for key, fragment in sections.items():
-            objects = self._render_objects(renderer, preamble, fragment, key)
-            if not objects:
-                continue
-            result = self._cobra.render({key: objects})
-            logs.extend(result.log)
-            success = success and result.success
-            logger.info("Template %s section %s rendered (%d objects).", name, key, len(objects))
-        return success
-
-    def _render_objects(
-        self, renderer: JinjaRenderer, preamble: str, fragment: str, key: str
-    ) -> list[dict[str, Any]]:
-        """Render one section once per sheet row (or a single time for static ones)."""
-        template = renderer.compile(preamble + fragment)
-        rows = self._data.sheets.get(key)
-        if rows is None:
-            return list(renderer.render_template(template, **self._data.variables).get(key) or [])
-        objects: list[dict[str, Any]] = []
-        for row in rows:
-            output = renderer.render_template(template, **{**self._data.variables, key: row})
-            objects.extend(output.get(key) or [])
-        return objects
 
     def _build_apic(self) -> tuple[ApicSession, str | None]:
         """Build the APIC session, prompting for missing credentials interactively."""
@@ -510,14 +468,14 @@ class DeployClass:
         self._data.variables = value
 
     @property
-    def template(self) -> list[tuple[str, Path]]:
-        """Configured templates as ``(content, path)`` pairs."""
-        return self._templates.templates
+    def schema(self) -> Path | None:
+        """Configured schema path, or None when unset."""
+        return self._schema.path
 
-    @template.setter
-    def template(self, value: Any) -> None:
-        """Append template(s) from a filename, list, or ``(content, name)``."""
-        self._templates.add(value)
+    @schema.setter
+    def schema(self, value: str | Path) -> None:
+        """Set the single schema file, resolved against ``working_folder``."""
+        self._schema.set(value)
 
     @property
     def config(self) -> str | dict[str, Any] | None:

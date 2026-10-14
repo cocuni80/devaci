@@ -27,6 +27,11 @@ class JinjaRenderer:
         self._env.filters["range"] = range_filter
         self._env.filters["nan"] = nan_filter
 
+    @property
+    def env(self) -> jinja2.Environment:
+        """Return the underlying Jinja environment (for extra filter registration)."""
+        return self._env
+
     def compile(self, template: str) -> jinja2.Template:
         """Compile ``template`` once so it can be rendered many times."""
         try:

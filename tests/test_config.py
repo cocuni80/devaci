@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from devaci import DeployClass, DeployConfig
@@ -43,8 +44,19 @@ def test_deploy_rejects_config_and_kwargs():
 
 
 def test_deploy_kwargs_backcompat(tmp_path):
+    (tmp_path / "schema.j2").write_text(
+        "uni:\n  class: pol.Uni\n"
+        "fvTenant:\n  class: fv.Tenant\n  parent: uni\n"
+        '  requires: {name: "{{ name }}"}\n',
+        encoding="utf-8",
+    )
+    pd.DataFrame([{"name": "acme"}]).to_excel(
+        tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
+    )
+
     aci = DeployClass(testing=True, working_folder=tmp_path, logging=False)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     assert aci.results[0]["success"] is True

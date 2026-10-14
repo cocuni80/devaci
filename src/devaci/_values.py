@@ -5,7 +5,7 @@ from __future__ import annotations
 from math import isnan
 from typing import Any
 
-__all__ = ["is_invalid", "is_nan", "is_nan_text"]
+__all__ = ["is_empty", "is_invalid", "is_nan", "is_nan_text", "normalize"]
 
 
 def is_nan_text(value: Any) -> bool:
@@ -29,3 +29,36 @@ def is_invalid(value: Any) -> bool:
     if isinstance(value, str):
         return not value.strip()
     return False
+
+
+def is_empty(value: Any) -> bool:
+    """Return True for anything a schema gate treats as missing.
+
+    Covers ``None``, empty/whitespace strings, float NaN and the text ``nan``
+    (case-insensitive) like :func:`is_invalid`, plus the text ``None`` that
+    Jinja emits when it renders a Python ``None``.
+    """
+    if value is None:
+        return True
+    if isinstance(value, float):
+        return isnan(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        return not text or text in ("nan", "none")
+    return False
+
+
+def normalize(value: Any) -> Any:
+    """Map empty renderings (``None``/nan) to ``""`` for APIC output.
+
+    Only fully-empty values are rewritten; whitespace-only and any other
+    non-empty value is kept verbatim so props that the old template emitted
+    unchanged stay identical.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float) and isnan(value):
+        return ""
+    if isinstance(value, str) and value.strip().lower() in ("nan", "none"):
+        return ""
+    return value

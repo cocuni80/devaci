@@ -4,155 +4,138 @@ import pandas as pd
 
 from devaci import DeployClass
 
+TENANT_SCHEMA = (
+    "uni:\n"
+    "  class: pol.Uni\n"
+    "fvTenant:\n"
+    "  class: fv.Tenant\n"
+    "  parent: uni\n"
+    '  requires: {name: "{{ name }}"}\n'
+)
 
-def test_deploy_in_memory_template(deploy, tenant_template):
+
+def _tenant_xlsx(tmp_path, names=("acme",)):
+    pd.DataFrame([{"name": name} for name in names]).to_excel(
+        tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
+    )
+
+
+def test_deploy_without_schema_is_a_noop(deploy):
     aci = deploy()
-    aci.template = tenant_template
     aci.deploy()
 
-    assert "acme" in aci.config
+    assert aci.results == []
+    assert aci.run["templates"] == []
+    assert aci.run["success"] is True
+
+
+def test_deploy_schema_builds_rows_from_xlsx(deploy, schema_file, tmp_path):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path, ("acme", "beta"))
+
+    aci = deploy()
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
+    aci.deploy()
+
+    config = aci.config
+    assert "acme" in config
+    assert "beta" in config
     assert aci.results[0]["success"] is True
 
 
-def test_deploy_from_xlsx(deploy, tmp_path):
-    pd.DataFrame([{"name": "acme"}, {"name": "beta"}]).to_excel(
+def test_deploy_schema_uses_variables(deploy, schema_file, tmp_path):
+    schema_file(
+        "uni:\n  class: pol.Uni\n"
+        "fvTenant:\n  class: fv.Tenant\n  parent: uni\n"
+        '  requires: {name: "{{ tenant_name }}"}\n'
+    )
+    pd.DataFrame([{"tag": "x"}]).to_excel(
         tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
     )
 
     aci = deploy()
+    aci.variables = {"tenant_name": "acme"}
     aci.xlsx = "data.xlsx"
-    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
-    aci.deploy()
-
-    config = aci.config
-    assert "acme" in config
-    assert "beta" in config
-
-    assert aci.results[0]["success"] is True
-
-
-def test_deploy_per_sheet_onto_same_config(deploy, tmp_path):
-    with pd.ExcelWriter(tmp_path / "data.xlsx") as writer:
-        pd.DataFrame([{"name": "acme"}]).to_excel(writer, sheet_name="fvTenant", index=False)
-        pd.DataFrame([{"name": "web", "tenant": "acme"}]).to_excel(
-            writer, sheet_name="fvAp", index=False
-        )
-
-    aci = deploy()
-    aci.xlsx = "data.xlsx"
-    aci.template = (
-        "fvTenant:\n  - name: {{ fvTenant.name }}\n"
-        "\n"
-        "fvAp:\n  - name: {{ fvAp.name }}\n    tenant: {{ fvAp.tenant }}\n",
-        "fabric.j2",
-    )
-    aci.deploy()
-
-    assert "acme" in aci.config
-    assert "web" in aci.config
-    assert aci.config.count("<fvTenant ") == 1
-    assert aci.config.count("<fvAp ") == 1
-
-
-def test_deploy_self_contained_template(deploy):
-    aci = deploy()
-    aci.template = (
-        '{% set names = ["one", "two"] %}\n'
-        "fvTenant:\n"
-        "  {% for name in names %}\n"
-        "  - name: {{ name }}\n"
-        "  {% endfor %}\n",
-        "static.j2",
-    )
-    aci.deploy()
-
-    assert "one" in aci.config
-    assert "two" in aci.config
-    assert aci.results[0]["success"] is True
-
-
-def test_deploy_multiple_templates(deploy):
-    aci = deploy()
-    aci.template = [
-        ("fvTenant:\n  - name: one\n", "one.j2"),
-        ("fvTenant:\n  - name: two\n", "two.j2"),
-    ]
-    aci.deploy()
-
-    assert len(aci.results) == 2
-    assert all(result["success"] for result in aci.results)
-    assert aci.config.count("<fvTenant ") == 2
-
-
-def test_deploy_template_from_file(deploy, tmp_path):
-    (tmp_path / "tenant.j2").write_text("fvTenant:\n  - name: acme\n", encoding="utf-8")
-
-    aci = deploy()
-    aci.template = "tenant.j2"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     assert "acme" in aci.config
 
 
-def test_deploy_from_csv(deploy, tmp_path):
-    pd.DataFrame({"tag": ["a", "b"], "name": ["acme", "beta"]}).to_csv(
-        tmp_path / "fvTenant.csv", index=False
-    )
+def test_deploy_schema_property_resolves_against_working_folder(deploy, schema_file, tmp_path):
+    schema_file(TENANT_SCHEMA)
 
     aci = deploy()
-    aci.csv = "fvTenant.csv"
-    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
+    aci.schema = "schema.j2"
+
+    assert aci.schema == tmp_path / "schema.j2"
+
+
+def test_deploy_missing_schema_file_fails(deploy):
+    aci = deploy()
+    aci.schema = "missing.j2"
     aci.deploy()
 
-    config = aci.config
-    assert "acme" in config
-    assert "beta" in config
+    assert aci.results[0]["success"] is False
+    assert any("failed to load schema" in event["message"] for event in aci.results[0]["log"])
 
 
-def test_deploy_save_output(deploy, tmp_path):
-    aci = deploy(file_output="scripts/config")
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+def test_deploy_unknown_class_fails(deploy, schema_file):
+    schema_file("fvTenant:\n  class: fv.Nope\n  requires: {name: x}\n")
+
+    aci = deploy()
+    aci.schema = "schema.j2"
     aci.deploy()
 
-    output = tmp_path / "scripts" / "config.xml"
-    assert output.exists()
-    assert "acme" in output.read_text(encoding="utf-8")
+    assert aci.results[0]["success"] is False
+    assert any(event["level"] == "error" for event in aci.results[0]["log"])
 
 
-def test_deploy_commits_when_all_templates_succeed(monkeypatch):
+def test_deploy_commits_when_all_rows_succeed(monkeypatch, schema_file, tmp_path):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
     committed = []
     monkeypatch.setattr(
         "devaci.transport.apic.ApicSession.commit", lambda self, config: committed.append(config)
     )
 
-    aci = DeployClass(testing=False, ip="10.0.0.1", username="u", password="p", logging=False)
-    aci.template = [
-        ("fvTenant:\n  - name: one\n", "one.j2"),
-        ("fvTenant:\n  - name: two\n", "two.j2"),
-    ]
+    aci = DeployClass(
+        testing=False,
+        ip="10.0.0.1",
+        username="u",
+        password="p",
+        logging=False,
+        working_folder=tmp_path,
+    )
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     assert len(committed) == 1
-    assert "one" in aci.config
-    assert "two" in aci.config
+    assert "acme" in aci.config
 
 
-def test_deploy_skips_commit_when_a_template_fails(monkeypatch):
+def test_deploy_skips_commit_when_a_row_fails(monkeypatch, schema_file, tmp_path):
+    schema_file("fvTenant:\n  class: fv.Nope\n")
     committed = []
     monkeypatch.setattr(
         "devaci.transport.apic.ApicSession.commit", lambda self, config: committed.append(config)
     )
 
-    aci = DeployClass(testing=False, ip="10.0.0.1", username="u", password="p", logging=False)
-    aci.template = [
-        ("{{ missing_helper() }}\n", "bad.j2"),
-        ("fvTenant:\n  - name: good\n", "good.j2"),
-    ]
+    aci = DeployClass(
+        testing=False,
+        ip="10.0.0.1",
+        username="u",
+        password="p",
+        logging=False,
+        working_folder=tmp_path,
+    )
+    aci.schema = "schema.j2"
     aci.deploy()
 
     assert committed == []
     assert aci.results[0]["success"] is False
-    assert aci.results[1]["success"] is True
 
 
 def test_deploy_does_not_prompt_at_construction(monkeypatch):
@@ -177,22 +160,13 @@ def test_build_apic_prompts_for_missing_credentials(monkeypatch):
     assert apic is not None
 
 
-def test_deploy_variable_named_name(deploy):
-    aci = deploy()
-    aci.variables = {"name": "test", "descr": "Test tenant"}
-    aci.template = (
-        "fvTenant:\n  - name: {{ name }}\n    descr: {{ descr }}\n",
-        "tenant.j2",
-    )
-    aci.deploy()
+def test_deploy_persists_one_structured_run_per_line(deploy, schema_file, tmp_path):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
 
-    assert aci.results[0]["success"] is True
-    assert "test" in aci.config
-
-
-def test_deploy_persists_one_structured_run_per_line(deploy, tmp_path):
     aci = deploy(logging=True, show_report=False)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     path = tmp_path / "outputs/logs/logging.jsonl"
@@ -205,20 +179,26 @@ def test_deploy_persists_one_structured_run_per_line(deploy, tmp_path):
     ]
 
 
-def test_deploy_report_can_be_disabled(deploy, capsys):
+def test_deploy_report_can_be_disabled(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(show_report=False)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     assert capsys.readouterr().out == ""
     assert aci.success is True
 
 
-def test_failed_commit_keeps_error_for_the_report(monkeypatch):
+def test_failed_commit_keeps_error_for_the_report(monkeypatch, schema_file, tmp_path):
     monkeypatch.setattr(
         "devaci.transport.apic.ApicSession.commit",
         lambda self, config: (_ for _ in ()).throw(ConnectionError("host unreachable")),
     )
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
     aci = DeployClass(
         testing=False,
         ip="1.1.1.1",
@@ -227,8 +207,10 @@ def test_failed_commit_keeps_error_for_the_report(monkeypatch):
         timer=0,
         logging=False,
         show_report=False,
+        working_folder=tmp_path,
     )
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     commit = aci.run["commit"]
@@ -237,21 +219,29 @@ def test_failed_commit_keeps_error_for_the_report(monkeypatch):
     assert "host unreachable" in commit["log"][0]["message"]
 
 
-def test_print_report_shows_latest_run(deploy, capsys):
+def test_print_report_shows_latest_run(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy()
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     aci.print_report()
 
     out = capsys.readouterr().out
-    assert "tenant.j2" in out
+    assert "schema.j2" in out
     assert "Result: OK" in out
 
 
-def test_print_reports_without_pagination_prints_all(deploy, capsys):
+def test_print_reports_without_pagination_prints_all(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(logging=True)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
     aci.deploy()
 
@@ -260,9 +250,13 @@ def test_print_reports_without_pagination_prints_all(deploy, capsys):
     assert capsys.readouterr().out.count("Result: OK") == 2
 
 
-def test_print_reports_paginated_stops_without_tty(deploy, capsys):
+def test_print_reports_paginated_stops_without_tty(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(logging=True)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     for _ in range(3):
         aci.deploy()
 
@@ -273,22 +267,7 @@ def test_print_reports_paginated_stops_without_tty(deploy, capsys):
     assert "older runs not shown" in out
 
 
-def test_unmatched_sheets_are_debug_only(deploy, tmp_path):
-    with pd.ExcelWriter(tmp_path / "data.xlsx") as writer:
-        pd.DataFrame([{"name": "acme"}]).to_excel(writer, sheet_name="fvTenant", index=False)
-        pd.DataFrame([{"name": "x"}]).to_excel(writer, sheet_name="OCs", index=False)
-
-    aci = deploy()
-    aci.xlsx = "data.xlsx"
-    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
-    aci.deploy()
-
-    log = aci.run["templates"][0]["log"]
-    assert all(event["level"] != "warning" for event in log)
-    assert any(event["level"] == "debug" and "OCs" in event["message"] for event in log)
-
-
-def test_report_without_templates(deploy, capsys):
+def test_report_without_schema(deploy, capsys):
     aci = deploy(show_report=True)
 
     aci.deploy()
@@ -296,14 +275,13 @@ def test_report_without_templates(deploy, capsys):
     assert "nothing to do" in capsys.readouterr().out
 
 
-def test_verbose_report_includes_object_counts(deploy, tmp_path, capsys):
-    pd.DataFrame([{"name": "acme"}, {"name": "beta"}]).to_excel(
-        tmp_path / "data.xlsx", sheet_name="fvTenant", index=False
-    )
+def test_verbose_report_includes_object_counts(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path, ("acme", "beta"))
 
     aci = deploy(verbose=True)
     aci.xlsx = "data.xlsx"
-    aci.template = ("fvTenant:\n  - name: {{ fvTenant.name }}\n", "tenant.j2")
+    aci.schema = "schema.j2"
     aci.deploy()
 
     aci.print_report()
@@ -311,28 +289,35 @@ def test_verbose_report_includes_object_counts(deploy, tmp_path, capsys):
     assert "fvTenant: rendered (2 objects)" in capsys.readouterr().out
 
 
-def test_report_prefers_current_run_over_stale_file(deploy, monkeypatch, capsys):
+def test_report_prefers_current_run_over_stale_file(
+    deploy, schema_file, tmp_path, monkeypatch, capsys
+):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(logging=True)
-    aci.template = ("fvTenant:\n  - name: acme\n", "one.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     monkeypatch.setattr(aci._runlog, "last", lambda: {"stale": True})
     aci.print_report()
 
-    assert "one.j2" in capsys.readouterr().out
+    assert "schema.j2" in capsys.readouterr().out
 
 
-def test_report_shows_all_errors(deploy, monkeypatch, capsys):
-    from devaci.cobra.builders import BUILDERS
-
-    def boom(builder, value):
-        raise ValueError("nope")
-
-    monkeypatch.setitem(BUILDERS, "fvTenant", boom)
-    monkeypatch.setitem(BUILDERS, "fvBD", boom)
+def test_report_shows_all_errors(deploy, schema_file, tmp_path, capsys):
+    schema_file(
+        "fvTenant:\n  class: fv.Tenant\n  requires: {name: \"{{ 1 / 0 }}\"}\n"
+        "fvAp:\n  class: fv.Ap\n  requires: {name: \"{{ 1 / 0 }}\"}\n"
+    )
+    with pd.ExcelWriter(tmp_path / "data.xlsx") as writer:
+        pd.DataFrame([{"name": "t"}]).to_excel(writer, sheet_name="fvTenant", index=False)
+        pd.DataFrame([{"name": "a"}]).to_excel(writer, sheet_name="fvAp", index=False)
 
     aci = deploy()
-    aci.template = ("fvTenant:\n  - name: t\n\nfvBD:\n  - name: b\n", "both.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     aci.print_report()
@@ -340,41 +325,53 @@ def test_report_shows_all_errors(deploy, monkeypatch, capsys):
     captured = capsys.readouterr()
     text = captured.out + captured.err
     assert "failed to build fvTenant" in text
-    assert "failed to build fvBD" in text
+    assert "failed to build fvAp" in text
 
 
-def test_deploy_without_templates_resets_results(deploy):
+def test_deploy_without_schema_resets_results(deploy, schema_file, tmp_path):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy()
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
     assert aci.results
 
-    aci._templates._templates.clear()
+    aci._schema._path = None
     aci.deploy()
 
     assert aci.results == []
     assert aci.run["templates"] == []
 
 
-def test_print_report_reads_file_regardless_of_logging(deploy, capsys):
+def test_print_report_reads_file_regardless_of_logging(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(logging=True)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     aci._config.logging = False
     aci._run = None
     aci.print_report()
 
-    assert "tenant.j2" in capsys.readouterr().out
+    assert "schema.j2" in capsys.readouterr().out
 
 
-def test_print_reports_reads_file_regardless_of_logging(deploy, capsys):
+def test_print_reports_reads_file_regardless_of_logging(deploy, schema_file, tmp_path, capsys):
+    schema_file(TENANT_SCHEMA)
+    _tenant_xlsx(tmp_path)
+
     aci = deploy(logging=True)
-    aci.template = ("fvTenant:\n  - name: acme\n", "tenant.j2")
+    aci.xlsx = "data.xlsx"
+    aci.schema = "schema.j2"
     aci.deploy()
 
     aci._config.logging = False
     aci._run = None
     aci.print_reports()
 
-    assert "tenant.j2" in capsys.readouterr().out
+    assert "schema.j2" in capsys.readouterr().out
